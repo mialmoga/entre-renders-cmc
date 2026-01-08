@@ -1,58 +1,92 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Rooms — CMC</title>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Entre Renders – CMC</title>
 
     <style>
         body {
-            font-family: "Georgia", serif;
-            background-color: #0e0e0e;
-            color: #f3f3f3;
             margin: 0;
             padding: 0;
-            text-align: center;
+            font-family: "Segoe UI", sans-serif;
+            background: #0f0f0f;
+            color: #e6e6e6;
         }
-        h1 {
-            padding: 40px 0 10px;
-            margin: 0;
-            background: linear-gradient(90deg, #4020a0, #9040ff);
-        }
-        .room-list {
-            margin: 50px auto;
-            max-width: 700px;
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 30px;
-        }
-        a.room {
-            display: block;
+
+        header {
+            background: #1c1c1c;
             padding: 20px;
-            border: 1px solid #cba4ff;
-            border-radius: 8px;
-            text-decoration: none;
-            color: #ffffff;
-            transition: 0.25s;
+            text-align: center;
+            border-bottom: 1px solid #333;
         }
-        a.room:hover {
-            background-color: #1f0038;
-            transform: scale(1.02);
+
+        header h1 {
+            margin: 0;
+            font-size: 28px;
+            letter-spacing: 1px;
+        }
+
+        nav {
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+            padding: 15px;
+            background: #141414;
+            border-bottom: 1px solid #333;
+        }
+
+        nav a {
+            color: #d8d8d8;
+            text-decoration: none;
+            font-size: 16px;
+        }
+
+        nav a:hover {
+            color: #fff;
+            text-shadow: 0 0 8px #ffe082;
+        }
+
+        main {
+            max-width: 900px;
+            padding: 40px;
+            margin: auto;
+        }
+
+        footer {
+            background: #1c1c1c;
+            padding: 15px;
+            text-align: center;
+            border-top: 1px solid #333;
+            font-size: 14px;
+            color: #777;
         }
     </style>
 </head>
 
 <body>
 
-<h1>Rooms del CMC</h1>
+<header>
+    <h1>ENTRE RENDERS</h1>
+</header>
 
-<div class="room-list">
-    <a class="room" href="velvet.html">Velvet</a>
-    <a class="room" href="ambar.html">Ámbar</a>
-    <a class="room" href="eter.html">Éter</a>
-    <a class="room" href="nebula.html">Nebula</a>
-    <a class="room" href="brujo.html">Brujo</a>
-</div>
+<nav>
+    <a href="index.html">Inicio</a>
+    <a href="rooms/velvet.html">Velvet</a>
+    <a href="rooms/ambar.html">Ámbar</a>
+    <a href="rooms/eter.html">Éter</a>
+    <a href="rooms/nebula.html">Nebula</a>
+    <a href="rooms/brujo.html">Brujo</a>
+</nav>
+
+<main>
+    <h2>Bienvenido al Faro</h2>
+    <p>Este es el centro de gravedad del CMC.</p>
+</main>
+
+<footer>
+    © 2026 Entre Renders – CMC
+</footer>
 
 </body>
 </html>
