@@ -1,0 +1,46 @@
+body {
+  margin: 0;
+  padding: 0;
+  background-color: #0e0f16;
+  color: #eaeaea;
+  font-family: "Montserrat", sans-serif;
+}
+
+header {
+  text-align: center;
+  padding: 20px 10px;
+}
+
+.subtitle {
+  opacity: 0.7;
+}
+
+#entries {
+  max-width: 800px;
+  margin: 0 auto;
+  padding: 10px 20px;
+}
+
+.entry-card {
+  background: rgba(255,255,255,0.05);
+  padding: 20px;
+  margin-bottom: 25px;
+  border-radius: 10px;
+  backdrop-filter: blur(6px);
+}
+
+.entry-card h2 {
+  margin-top: 0;
+}
+
+.entry-card .date {
+  opacity: 0.6;
+  font-size: 0.9em;
+}
+
+footer {
+  text-align: center;
+  padding: 20px;
+  opacity: 0.5;
+  font-size: 0.9em;
+}
