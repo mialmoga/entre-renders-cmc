@@ -6,122 +6,99 @@
 
 <style>
     body {
-    background: #0c0f14;
-    color: #eee;
-    font-family: "Inter", system-ui, sans-serif;
-    padding: 16px;
-    max-width: 600px;
-    margin: auto;
+  font-family: 'Space Grotesk', sans-serif;
+  background: #0d1117;
+  color: #e6edf3;
+  padding: 20px;
+  margin: 0;
 }
 
-h2 {
-    color: #9fc6ff;
-    margin-bottom: 20px;
-    font-size: 24px;
-    text-align: center;
+h1 {
+  text-align: center;
+  font-size: 1.6rem;
+  margin-bottom: 25px;
 }
 
-input, textarea, select {
-    width: 100%;
-    margin-bottom: 14px;
-    padding: 14px;
-    background: #0f141c;
-    color: #eee;
-    border: 1px solid #2a3342;
-    border-radius: 6px;
-    font-size: 16px;
+label {
+  font-size: 1.1rem;
+  margin-bottom: 6px;
+  display: block;
+}
+
+input, select, textarea {
+  width: 100%;
+  font-size: 1.1rem;
+  padding: 14px;
+  margin-bottom: 18px;
+  border-radius: 8px;
+  border: 1px solid #30363d;
+  background: #161b22;
+  color: #e6edf3;
 }
 
 textarea {
-    min-height: 180px;
+  min-height: 150px;
 }
 
 button {
-    padding: 14px 18px;
-    background: #1f7fe2;
-    border: none;
-    border-radius: 6px;
-    color: white;
-    margin-right: 5px;
-    margin-bottom: 12px;
-    cursor: pointer;
-    font-size: 16px;
-    width: 100%;
+  width: 100%;
+  padding: 16px;
+  margin-top: 10px;
+  margin-bottom: 10px;
+  background: #238636;
+  color: white;
+  font-size: 1.2rem;
+  border-radius: 10px;
+  border: none;
+  cursor: pointer;
 }
 
-button:hover { 
-    background: #3b98ff; 
+button:hover {
+  background: #2ea043;
 }
 
-/* JSON preview */
-#preview {
-    background: #11161f;
-    border: 1px solid #2a3342;
-    padding: 16px;
-    border-radius: 8px;
-    margin-top: 20px;
-    font-size: 14px;
-    white-space: pre-wrap;
+/* Caja JSON */
+#output {
+  margin-top: 30px;
+  font-size: 1rem;
+  background: #161b22;
+  padding: 18px;
+  border-radius: 10px;
+  overflow-x: auto;
+  white-space: pre-wrap;
+  word-wrap: break-word;
 }
 
-/* VISUAL PREVIEW */
-.entry-preview {
-    margin-top: 30px;
-    padding: 20px;
-    background: #121820;
-    border: 1px solid #2a3342;
-    border-radius: 8px;
+/* PREVIEW */
+.preview-box {
+  margin-top: 25px;
+  background: #161b22;
+  padding: 20px;
+  border-radius: 12px;
 }
 
-.entry-title {
-    font-size: 22px;
-    font-weight: 700;
-    margin-bottom: 12px;
-    color: #a5d1ff;
-    text-align: center;
+.preview-title {
+  font-size: 1.6rem;
+  text-align: center;
+  margin-bottom: 20px;
 }
 
-.entry-meta {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    margin-bottom: 18px;
+.preview-author {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  margin-bottom: 15px;
 }
 
-.entry-meta img {
-    width: 72px;
-    height: 72px;
-    border-radius: 8px;
-    margin-right: 14px;
-    border: 2px solid #2a3342;
-    object-fit: cover;
+.preview-author img {
+  width: 70px;
+  height: 70px;
+  border-radius: 10px;
 }
 
-.entry-author {
-    font-size: 17px;
-    color: #eee;
-}
-
-.entry-date {
-    font-size: 14px;
-    color: #bbb;
-}
-
-.entry-content {
-    margin-top: 8px;
-    line-height: 1.6;
-    font-size: 16px;
-    color: #d6e0f0;
-    white-space: pre-wrap;
-}
-
-/* Ultra-phone fix */
-@media (max-width: 360px) {
-    input, textarea, select, button {
-        font-size: 14px;
-    }
-    .entry-title { font-size: 20px; }
-    .entry-meta img { width: 60px; height: 60px; }
+.preview-content {
+  font-size: 1.2rem;
+  line-height: 1.6;
 }
 </style>
 
