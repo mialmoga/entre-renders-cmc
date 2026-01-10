@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Editor CMC</title>
+
+<style>
+    body {
+        background: #0d0d14;
+        color: #ddd;
+        font-family: Arial, sans-serif;
+        margin: 0;
+        padding: 0;
+    }
+
+    /* Barra superior */
+    #toolbar {
+        position: sticky;
+        top: 0;
+        z-index: 999;
+        background: #1a1a2b;
+        padding: 10px;
+        display: flex;
+        gap: 8px;
+        border-bottom: 2px solid #333;
+    }
+
+    #toolbar button {
+        background: #26263a;
+        color: #fff;
+        border: none;
+        padding: 8px 12px;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 14px;
+    }
+
+    #toolbar button:hover {
+        background: #3a3a59;
+    }
+
+    /* Área de metadatos */
+    #meta {
+        padding: 10px;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+    }
+
+    input, select {
+        width: 100%;
+        padding: 8px;
+        border-radius: 6px;
+        border: 1px solid #555;
+        background: #111119;
+        color: #eee;
+    }
+
+    /* Editor */
+    #editor {
+        min-height: 200px;
+        background: #13131f;
+        margin: 10px;
+        padding: 10px;
+        border: 1px solid #333;
+        border-radius: 6px;
+        white-space: pre-wrap;
+    }
+
+    /* JSON preview */
+    #output {
+        background: #0f0f17;
+        padding: 10px;
+        margin: 10px;
+        border-radius: 6px;
+        border: 1px solid #444;
+        font-family: monospace;
+        white-space: pre-wrap;
+        color: #9fffad;
+    }
+
+    #actions {
+        margin: 10px;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+    }
+
+    #actions button {
+        padding: 10px;
+        background: #2a2a48;
+        color: #fff;
+        border: none;
+        border-radius: 6px;
+        font-size: 14px;
+        cursor: pointer;
+    }
+
+    #actions button:hover {
+        background: #404070;
+    }
+</style>
+
+</head>
+<body>
+
+<!-- Barra de herramientas -->
+<div id="toolbar">
+    <button onclick="format('bold')">Negrita</button>
+    <button onclick="format('italic')">Cursiva</button>
+    <button onclick="addHeading()">Título</button>
+    <button onclick="addSeparator()">Separador</button>
+    <button onclick="addBreak()">Salto</button>
+    <button onclick="clearEditor()">Limpiar</button>
+</div>
+
+<!-- Metadatos -->
+<div id="meta">
+    <input id="title" type="text" placeholder="Título del artículo">
+    <select id="author">
+        <option value="velvet">Velvet</option>
+        <option value="ambar">Ámbar</option>
+        <option value="eter">Éter</option>
+        <option value="nebula">Nebula</option>
+        <option value="brujo">Brujo</option>
+    </select>
+    <input id="tags" type="text" placeholder="Tags separadas por comas">
+</div>
+
+<!-- Editor principal -->
+<div id="editor" contenteditable="true"></div>
+
+<!-- Salida de JSON -->
+<div id="output">{ JSON aparecerá aquí... }</div>
+
+<!-- Botones -->
+<div id="actions">
+    <button onclick="copyJSON()">Copiar JSON</button>
+    <button onclick="downloadJSON()">Descargar JSON</button>
+</div>
+
+<script>
+function format(cmd) {
+    document.execCommand(cmd, false, null);
+    updateJSON();
+}
+
+function addHeading() {
+    document.execCommand("insertHTML", false, "<h2>Título aquí</h2>");
+    updateJSON();
+}
+
+function addSeparator() {
+    document.execCommand("insertHTML", false, "<hr>");
+    updateJSON();
+}
+
+function addBreak() {
+    document.execCommand("insertHTML", false, "<br><br>");
+    updateJSON();
+}
+
+function clearEditor() {
+    document.getElementById("editor").innerHTML = "";
+    updateJSON();
+}
+
+function escapeString(str) {
+    return str
+        .replace(/\\/g, "\\\\")
+        .replace(/"/g, "\\\"")
+        .replace(/\n/g, "\\n");
+}
+
+function updateJSON() {
+    const title = document.getElementById("title").value;
+    const author = document.getElementById("author").value;
+    const tags = document.getElementById("tags").value.split(",").map(t => t.trim()).filter(t => t.length > 0);
+    const html = document.getElementById("editor").innerHTML;
+
+    const text = html.replace(/<br>/g, "\n")
+                     .replace(/<[^>]+>/g, ""); 
+
+    const escaped = escapeString(text);
+
+    const avatar = `../assets/img/${author}.png`;
+
+    const json = {
+        title: title,
+        author: author.charAt(0).toUpperCase() + author.slice(1),
+        date: new Date().toISOString().substring(0,10),
+        avatar: avatar,
+        tags: tags,
+        content: escaped
+    };
+
+    document.getElementById("output").innerText = JSON.stringify(json, null, 2);
+}
+
+setInterval(updateJSON, 500);
+
+function copyJSON() {
+    const text = document.getElementById("output").innerText;
+    navigator.clipboard.writeText(text);
+}
+
+function downloadJSON() {
+    const text = document.getElementById("output").innerText;
+    const title = document.getElementById("title").value || "entrada";
+    const blob = new Blob([text], { type: "application/json" });
+
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = title.replace(/\s+/g, "_") + ".json";
+    a.click();
+}
+</script>
+
+</body>
+</html>
