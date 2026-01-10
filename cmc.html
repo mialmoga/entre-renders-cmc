@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>El Faro - Lanzador de Mando</title>
+    <style>
+        :root {
+            --bg: #0a0a0a;
+            --amber: #d4af37;
+            --velvet: #8a2be2;
+            --gpt: #10a37f;
+            --gemini: #4285f4;
+        }
+
+        body, html {
+            margin: 0; padding: 0; height: 100%;
+            background: var(--bg); color: #fff;
+            font-family: 'Segoe UI', sans-serif;
+        }
+
+        .container {
+            display: flex;
+            height: 100vh;
+        }
+
+        /* Panel Izquierdo: Lanzadores */
+        .launcher {
+            width: 40%;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            grid-template-rows: 1fr 1fr;
+            gap: 15px;
+            padding: 20px;
+            box-sizing: border-box;
+        }
+
+        .ia-card {
+            border: 1px solid #333;
+            border-radius: 10px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            cursor: pointer;
+            transition: 0.3s;
+            text-decoration: none;
+            color: #aaa;
+            font-weight: bold;
+        }
+
+        .ia-card:hover { transform: scale(1.02); color: #fff; }
+
+        /* Colores específicos */
+        .card-gpt:hover { border-color: var(--gpt); box-shadow: 0 0 15px var(--gpt); }
+        .card-gemini:hover { border-color: var(--gemini); box-shadow: 0 0 15px var(--gemini); }
+        .card-amber:hover { border-color: var(--amber); box-shadow: 0 0 15px var(--amber); }
+        .card-velvet:hover { border-color: var(--velvet); box-shadow: 0 0 15px var(--velvet); }
+
+        /* Panel Derecho: Bitácora */
+        .bitacora-panel {
+            width: 60%;
+            background: #111;
+            border-left: 2px solid var(--amber);
+            display: flex;
+            flex-direction: column;
+            padding: 20px;
+            box-sizing: border-box;
+        }
+
+        textarea {
+            flex-grow: 1;
+            background: #000;
+            color: #00ff00;
+            border: 1px solid #333;
+            padding: 20px;
+            font-family: 'Courier New', monospace;
+            font-size: 1.1rem;
+            border-radius: 8px;
+            resize: none;
+        }
+
+        .download-btn {
+            margin-top: 15px;
+            background: var(--amber);
+            color: #000;
+            border: none;
+            padding: 15px;
+            font-weight: bold;
+            cursor: pointer;
+            border-radius: 5px;
+            text-transform: uppercase;
+        }
+
+        .status { font-size: 0.7rem; color: #555; margin-top: 10px; text-align: center; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div class="launcher">
+        <div class="ia-card card-gpt" onclick="abrirIA('https://chat.openai.com', 0, 0)">
+            <span>ChatGPT</span>
+        </div>
+        <div class="ia-card card-gemini" onclick="abrirIA('https://gemini.google.com', 1, 0)">
+            <span>Google Gemini</span>
+        </div>
+        <div class="ia-card card-amber" onclick="abrirIA('https://claude.ai', 0, 1)">
+            <span>Ámbar (Claude)</span>
+        </div>
+        <div class="ia-card card-velvet" onclick="abrirIA('https://copilot.microsoft.com', 1, 1)">
+            <span>Velvet (Copilot)</span>
+        </div>
+    </div>
+
+    <div class="bitacora-panel">
+        <h2 style="color: var(--amber); margin-top: 0;">BITÁCORA DEL BRUJO</h2>
+        <textarea id="texto" placeholder="Escribe las conclusiones aquí..."></textarea>
+        <button class="download-btn" onclick="descargar()">Guardar Reporte .TXT</button>
+        <div class="status">Pulsa cada cuadro para posicionar las IAs en tu pantalla.</div>
+    </div>
+</div>
+
+<script>
+    function abrirIA(url, xFact, yFact) {
+        // Calculamos la mitad del ancho y alto de la pantalla disponible
+        const w = window.screen.availWidth / 2;
+        const h = window.screen.availHeight / 2;
+        
+        // Calculamos la posición X e Y según el cuadro pulsado
+        const posX = xFact * w;
+        const posY = yFact * h;
+
+        window.open(url, '_blank', `width=${w},height=${h},left=${posX},top=${posY},toolbar=no,menubar=no`);
+    }
+
+    function descargar() {
+        const contenido = document.getElementById('texto').value;
+        const blob = new Blob([contenido], { type: 'text/plain' });
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = 'registro_el_faro.txt';
+        a.click();
+    }
+</script>
+
+</body>
+</html>
