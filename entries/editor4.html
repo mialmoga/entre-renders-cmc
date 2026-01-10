@@ -6,95 +6,123 @@
 
 <style>
     body {
-        background: #0c0f14;
-        color: #eee;
-        font-family: Consolas, monospace;
-        padding: 20px;
-    }
-    h2 {
-        color: #9fc6ff;
-        margin-bottom: 20px;
-    }
-    input, textarea, select {
-        width: 100%;
-        margin-bottom: 14px;
-        padding: 12px;
-        background: #0f141c;
-        color: #eee;
-        border: 1px solid #2a3342;
-        border-radius: 4px;
-        font-size: 14px;
-    }
-    button {
-        padding: 12px 18px;
-        background: #1f7fe2;
-        border: none;
-        border-radius: 4px;
-        color: white;
-        margin-right: 10px;
-        margin-bottom: 10px;
-        cursor: pointer;
-        font-size: 14px;
-    }
-    button:hover { background: #3b98ff; }
+    background: #0c0f14;
+    color: #eee;
+    font-family: "Inter", system-ui, sans-serif;
+    padding: 16px;
+    max-width: 600px;
+    margin: auto;
+}
 
-    #preview {
-        background: #11161f;
-        border: 1px solid #2a3342;
-        padding: 18px;
-        border-radius: 6px;
-        margin-top: 20px;
-        white-space: pre-wrap;
-        word-wrap: break-word;
+h2 {
+    color: #9fc6ff;
+    margin-bottom: 20px;
+    font-size: 24px;
+    text-align: center;
+}
+
+input, textarea, select {
+    width: 100%;
+    margin-bottom: 14px;
+    padding: 14px;
+    background: #0f141c;
+    color: #eee;
+    border: 1px solid #2a3342;
+    border-radius: 6px;
+    font-size: 16px;
+}
+
+textarea {
+    min-height: 180px;
+}
+
+button {
+    padding: 14px 18px;
+    background: #1f7fe2;
+    border: none;
+    border-radius: 6px;
+    color: white;
+    margin-right: 5px;
+    margin-bottom: 12px;
+    cursor: pointer;
+    font-size: 16px;
+    width: 100%;
+}
+
+button:hover { 
+    background: #3b98ff; 
+}
+
+/* JSON preview */
+#preview {
+    background: #11161f;
+    border: 1px solid #2a3342;
+    padding: 16px;
+    border-radius: 8px;
+    margin-top: 20px;
+    font-size: 14px;
+    white-space: pre-wrap;
+}
+
+/* VISUAL PREVIEW */
+.entry-preview {
+    margin-top: 30px;
+    padding: 20px;
+    background: #121820;
+    border: 1px solid #2a3342;
+    border-radius: 8px;
+}
+
+.entry-title {
+    font-size: 22px;
+    font-weight: 700;
+    margin-bottom: 12px;
+    color: #a5d1ff;
+    text-align: center;
+}
+
+.entry-meta {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 18px;
+}
+
+.entry-meta img {
+    width: 72px;
+    height: 72px;
+    border-radius: 8px;
+    margin-right: 14px;
+    border: 2px solid #2a3342;
+    object-fit: cover;
+}
+
+.entry-author {
+    font-size: 17px;
+    color: #eee;
+}
+
+.entry-date {
+    font-size: 14px;
+    color: #bbb;
+}
+
+.entry-content {
+    margin-top: 8px;
+    line-height: 1.6;
+    font-size: 16px;
+    color: #d6e0f0;
+    white-space: pre-wrap;
+}
+
+/* Ultra-phone fix */
+@media (max-width: 360px) {
+    input, textarea, select, button {
         font-size: 14px;
     }
-
-    /* PREVIEW BONITO */
-    .entry-preview {
-        margin-top: 30px;
-        padding: 20px;
-        background: #121820;
-        border: 1px solid #2a3342;
-        border-radius: 8px;
-    }
-    .entry-title {
-        font-size: 22px;
-        font-weight: bold;
-        margin-bottom: 10px;
-        color: #a5d1ff;
-        font-family: system-ui, sans-serif;
-    }
-    .entry-meta {
-        display: flex;
-        align-items: center;
-        margin-bottom: 15px;
-    }
-    .entry-meta img {
-        width: 60px;
-        height: 60px;
-        border-radius: 6px;
-        margin-right: 15px;
-        border: 2px solid #2a3342;
-        object-fit: cover;
-    }
-    .entry-author {
-        font-size: 16px;
-        color: #eee;
-        font-family: system-ui, sans-serif;
-    }
-    .entry-date {
-        font-size: 13px;
-        color: #bbb;
-        font-family: system-ui, sans-serif;
-    }
-    .entry-content {
-        margin-top: 10px;
-        line-height: 1.6;
-        font-size: 15px;
-        color: #d6e0f0;
-        font-family: system-ui, sans-serif;
-        white-space: pre-wrap;
-    }
+    .entry-title { font-size: 20px; }
+    .entry-meta img { width: 60px; height: 60px; }
+}
 </style>
 
 </head>
