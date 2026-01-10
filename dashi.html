@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>El Faro - Centro de Mando</title>
+    <style>
+        :root {
+            --bg: #050505;
+            --card: #121212;
+            --amber: #ffbf00; /* Ámbar */
+            --velvet: #8a2be2; /* Velvet */
+            --gemini: #4285f4;
+            --gpt: #10a37f;
+        }
+
+        body, html {
+            margin: 0; padding: 0; height: 100%;
+            background: var(--bg); color: #fff;
+            font-family: 'Segoe UI', sans-serif; overflow: hidden;
+        }
+
+        .main { display: flex; height: 100vh; }
+
+        .grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            grid-template-rows: 1fr 1fr;
+            flex-grow: 1;
+            gap: 15px;
+            padding: 15px;
+        }
+
+        .ia-box {
+            background: var(--card);
+            border: 1px solid #333;
+            border-radius: 10px;
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        /* Colores por IA */
+        .box-gpt { border-top: 4px solid var(--gpt); }
+        .box-gemini { border-top: 4px solid var(--gemini); }
+        .box-claude { border-top: 4px solid var(--amber); }
+        .box-copilot { border-top: 4px solid var(--velvet); }
+
+        .header {
+            padding: 8px 15px;
+            background: rgba(255,255,255,0.05);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 0.8rem;
+            font-weight: bold;
+        }
+
+        iframe {
+            width: 100%;
+            height: 100%;
+            border: none;
+            background: #fff; /* Algunas IAs lo requieren para legibilidad */
+        }
+
+        /* Sidebar */
+        .sidebar {
+            width: 350px;
+            background: #0f0f0f;
+            border-left: 1px solid #222;
+            display: flex;
+            flex-direction: column;
+            padding: 20px;
+        }
+
+        textarea {
+            flex-grow: 1;
+            background: #1a1a1a;
+            color: #00ff00; /* Estilo terminal */
+            border: 1px solid #333;
+            padding: 15px;
+            font-family: 'Courier New', monospace;
+            border-radius: 5px;
+            resize: none;
+        }
+
+        .btn {
+            margin-top: 15px;
+            background: var(--amber);
+            color: #000;
+            border: none;
+            padding: 15px;
+            cursor: pointer;
+            font-weight: bold;
+            border-radius: 5px;
+        }
+
+        .pop-btn {
+            background: #333;
+            color: #fff;
+            border: none;
+            padding: 4px 8px;
+            font-size: 10px;
+            cursor: pointer;
+            border-radius: 3px;
+        }
+    </style>
+</head>
+<body>
+
+<div class="main">
+    <div class="grid">
+        <div class="ia-box box-gpt">
+            <div class="header">ChatGPT <button class="pop-btn" onclick="openIA('https://chat.openai.com')">Lanzar</button></div>
+            <iframe src="https://chat.openai.com"></iframe>
+        </div>
+
+        <div class="ia-box box-gemini">
+            <div class="header">Gemini <button class="pop-btn" onclick="openIA('https://gemini.google.com')">Lanzar</button></div>
+            <iframe src="https://gemini.google.com"></iframe>
+        </div>
+
+        <div class="ia-box box-claude">
+            <div class="header">Ámbar (Claude) <button class="pop-btn" onclick="openIA('https://claude.ai')">Lanzar</button></div>
+            <iframe src="https://claude.ai"></iframe>
+        </div>
+
+        <div class="ia-box box-copilot">
+            <div class="header">Velvet (Copilot) <button class="pop-btn" onclick="openIA('https://copilot.microsoft.com')">Lanzar</button></div>
+            <iframe src="https://copilot.microsoft.com"></iframe>
+        </div>
+    </div>
+
+    <div class="sidebar">
+        <h2 style="color: var(--amber)">Bitácora del Brujo</h2>
+        <textarea id="log" placeholder="Escribiendo desde El Faro..."></textarea>
+        <button class="btn" onclick="save()">DESCARGAR REPORTE</button>
+    </div>
+</div>
+
+<script>
+    // Función para abrir en ventana flotante si el iframe falla
+    function openIA(url) {
+        window.open(url, 'targetWindow', 'toolbar=no,location=no,status=no,menubar=no,scrollbars=yes,resizable=yes,width=800,height=600');
+    }
+
+    function save() {
+        const text = document.getElementById('log').value;
+        const blob = new Blob([text], {type: 'text/plain'});
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = 'faro_notes.txt';
+        a.click();
+    }
+</script>
+
+</body>
+</html>
