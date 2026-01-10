@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>CMC – Generador de Entradas JSON</title>
+
+<style>
+    body {
+        background: #0c0f14;
+        color: #eee;
+        font-family: Consolas, monospace;
+        padding: 20px;
+    }
+    h2 {
+        color: #9fc6ff;
+        margin-bottom: 20px;
+    }
+    input, textarea, select {
+        width: 100%;
+        margin-bottom: 14px;
+        padding: 12px;
+        background: #0f141c;
+        color: #eee;
+        border: 1px solid #2a3342;
+        border-radius: 4px;
+        font-size: 14px;
+    }
+    button {
+        padding: 12px 18px;
+        background: #1f7fe2;
+        border: none;
+        border-radius: 4px;
+        color: white;
+        margin-right: 10px;
+        margin-bottom: 10px;
+        cursor: pointer;
+        font-size: 14px;
+    }
+    button:hover { background: #3b98ff; }
+
+    #preview {
+        background: #11161f;
+        border: 1px solid #2a3342;
+        padding: 18px;
+        border-radius: 6px;
+        margin-top: 20px;
+        white-space: pre-wrap;
+        word-wrap: break-word;
+        font-size: 14px;
+    }
+
+    /* PREVIEW BONITO */
+    .entry-preview {
+        margin-top: 30px;
+        padding: 20px;
+        background: #121820;
+        border: 1px solid #2a3342;
+        border-radius: 8px;
+    }
+    .entry-title {
+        font-size: 22px;
+        font-weight: bold;
+        margin-bottom: 10px;
+        color: #a5d1ff;
+        font-family: system-ui, sans-serif;
+    }
+    .entry-meta {
+        display: flex;
+        align-items: center;
+        margin-bottom: 15px;
+    }
+    .entry-meta img {
+        width: 60px;
+        height: 60px;
+        border-radius: 6px;
+        margin-right: 15px;
+        border: 2px solid #2a3342;
+        object-fit: cover;
+    }
+    .entry-author {
+        font-size: 16px;
+        color: #eee;
+        font-family: system-ui, sans-serif;
+    }
+    .entry-date {
+        font-size: 13px;
+        color: #bbb;
+        font-family: system-ui, sans-serif;
+    }
+    .entry-content {
+        margin-top: 10px;
+        line-height: 1.6;
+        font-size: 15px;
+        color: #d6e0f0;
+        font-family: system-ui, sans-serif;
+        white-space: pre-wrap;
+    }
+</style>
+
+</head>
+<body>
+
+<h2>✨ Generador JSON para Entradas del CMC</h2>
+
+<label>Título</label>
+<input type="text" id="title">
+
+<label>Autor</label>
+<select id="author">
+    <option value="" disabled selected>Selecciona autor</option>
+    <option value="Velvet">Velvet</option>
+    <option value="Ámbar">Ámbar</option>
+    <option value="Éter">Éter</option>
+    <option value="Nebula">Nebula</option>
+    <option value="Brujo">Brujo</option>
+</select>
+
+<label>Fecha</label>
+<input type="date" id="date">
+
+<label>Tags (separados por comas)</label>
+<input type="text" id="tags">
+
+<label>Contenido</label>
+<textarea id="content" rows="12"></textarea>
+
+<button onclick="generateJSON()">Generar JSON</button>
+<button onclick="copyJSON()">Copiar JSON</button>
+<button onclick="downloadJSON()">Descargar .json</button>
+<button onclick="clearAll()">Limpiar Todo</button>
+
+<pre id="preview">Aquí aparecerá la previsualización JSON…</pre>
+
+<div class="entry-preview" id="visualPreview" style="display:none;">
+    <div class="entry-title" id="vpTitle"></div>
+    <div class="entry-meta">
+        <img id="vpAvatar" src="">
+        <div>
+            <div class="entry-author" id="vpAuthor"></div>
+            <div class="entry-date" id="vpDate"></div>
+        </div>
+    </div>
+    <div class="entry-content" id="vpContent"></div>
+</div>
+
+<script>
+function generateJSON() {
+    const title = document.getElementById("title").value.trim();
+    const author = document.getElementById("author").value.trim();
+    const date = document.getElementById("date").value.trim();
+    const tags = document.getElementById("tags").value.split(",").map(s => s.trim());
+    let content = document.getElementById("content").value;
+
+    // Escapar comillas dobles
+    content = content.replace(/"/g, '\\"');
+
+    // Reemplazar saltos por \n
+    const jsonContent = content.replace(/\n/g, "\\n");
+
+    // Avatar auto-asignado
+    let avatar = "";
+    switch(author.toLowerCase()) {
+        case "velvet": avatar = "../assets/img/velvet.png"; break;
+        case "ámbar":
+        case "ambar": avatar = "../assets/img/ambar.png"; break;
+        case "éter":
+        case "eter": avatar = "../assets/img/eter.png"; break;
+        case "nebula": avatar = "../assets/img/nebula.png"; break;
+        case "brujo": avatar = "../assets/img/brujo.png"; break;
+        default: avatar = "../assets/img/default.png";
+    }
+
+    const jsonObj = {
+        title,
+        author,
+        date,
+        avatar,
+        tags,
+        content: jsonContent
+    };
+
+    // JSON preview
+    document.getElementById("preview").textContent =
+        JSON.stringify(jsonObj, null, 2);
+
+    // VISUAL PREVIEW
+    document.getElementById("visualPreview").style.display = "block";
+    document.getElementById("vpTitle").textContent = title;
+    document.getElementById("vpAvatar").src = avatar;
+    document.getElementById("vpAuthor").textContent = author;
+    document.getElementById("vpDate").textContent = date;
+    document.getElementById("vpContent").textContent = content; // original con saltos
+
+    return jsonObj;
+}
+
+function copyJSON() {
+    const obj = generateJSON();
+    navigator.clipboard.writeText(JSON.stringify(obj, null, 2));
+    alert("JSON copiado al portapapeles 💛");
+}
+
+function downloadJSON() {
+    const obj = generateJSON();
+    const blob = new Blob([JSON.stringify(obj, null, 2)], {type: "application/json"});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${obj.title.replace(/\s+/g, "_")}.json`;
+    a.click();
+}
+
+function clearAll() {
+    document.getElementById("title").value = "";
+    document.getElementById("author").value = "";
+    document.getElementById("date").value = "";
+    document.getElementById("tags").value = "";
+    document.getElementById("content").value = "";
+    document.getElementById("preview").textContent = "Aquí aparecerá la previsualización JSON…";
+    document.getElementById("visualPreview").style.display = "none";
+}
+</script>
+
+</body>
+</html>
