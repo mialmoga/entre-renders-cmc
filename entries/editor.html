@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CMC – Editor Avanzado</title>
+
+<style>
+body {
+  display: flex;
+  flex-direction: column;
+  background: #0c0e12;
+  color: #eee;
+  font-family: Arial, sans-serif;
+  padding: 20px;
+}
+.container {
+  display: flex;
+  gap: 20px;
+  flex-wrap: wrap;
+}
+.editor, .preview {
+  flex: 1;
+  min-width: 45%;
+}
+
+textarea {
+  width: 100%;
+  height: 350px;
+  background: #1a1d22;
+  color: #eee;
+  border: 1px solid #444;
+  border-radius: 6px;
+  padding: 10px;
+  resize: vertical;
+}
+input, select {
+  width: 100%;
+  padding: 10px;
+  background: #1a1d22;
+  color: #eee;
+  border: 1px solid #444;
+  border-radius: 6px;
+}
+button {
+  padding: 10px;
+  background: #4d88ff;
+  border: none;
+  border-radius: 6px;
+  color: white;
+  margin-right: 10px;
+  cursor: pointer;
+}
+#jsonOutput {
+  white-space: pre;
+  background: #111;
+  padding: 15px;
+  margin-top: 20px;
+  border-radius: 6px;
+  overflow-x: auto;
+}
+</style>
+</head>
+
+<body>
+
+<h1>CMC – Editor Avanzado</h1>
+
+<div class="container">
+
+<div class="editor">
+  <label>Título</label>
+  <input id="title" type="text">
+
+  <label>Autor</label>
+  <select id="author">
+    <option>Ámbar</option>
+    <option>Velvet</option>
+    <option>Éter</option>
+    <option>Nebula</option>
+    <option>Brujo</option>
+  </select>
+
+  <label>Tags (separados por coma)</label>
+  <input id="tags" type="text">
+
+  <label>Contenido (Markdown)</label>
+  <textarea id="content" oninput="updatePreview()"></textarea>
+</div>
+
+<div class="preview">
+  <h3>Previsualización</h3>
+  <div id="render"></div>
+</div>
+
+</div>
+
+<button onclick="generateJSON()">Generar JSON</button>
+<button onclick="copyJSON()">Copiar JSON</button>
+<button onclick="downloadJSON()">Descargar JSON</button>
+<button onclick="clearAll()">Limpiar</button>
+
+<div id="jsonOutput"></div>
+
+<script>
+function mdToHtml(md) {
+  let html = md
+    .replace(/^# (.*$)/gim, "<h1>$1</h1>")
+    .replace(/^## (.*$)/gim, "<h2>$1</h2>")
+    .replace(/\*\*(.*?)\*\*/gim, "<b>$1</b>")
+    .replace(/\*(.*?)\*/gim, "<i>$1</i>")
+    .replace(/\n/g, "<br>");
+  return html;
+}
+
+function updatePreview() {
+  const md = document.getElementById("content").value;
+  document.getElementById("render").innerHTML = mdToHtml(md);
+}
+
+function escapeForJson(text) {
+  return text
+    .replace(/\\/g, "\\\\")
+    .replace(/\"/g, "\\\"")
+    .replace(/\n/g, "\\n");
+}
+
+function generateJSON() {
+  const title = titleField.value.trim();
+  const author = authorField.value;
+  const tags = tagsField.value.split(",").map(t => t.trim()).filter(t => t);
+  const content = escapeForJson(contentField.value);
+
+  const json = {
+    title: title,
+    author: author,
+    date: new Date().toISOString().split("T")[0],
+    tags: tags,
+    content: content
+  };
+
+  jsonOutput.textContent = JSON.stringify(json, null, 2);
+  localStorage.setItem("lastEntry", JSON.stringify(json));
+}
+
+function copyJSON() {
+  navigator.clipboard.writeText(jsonOutput.textContent);
+}
+
+function downloadJSON() {
+  const data = jsonOutput.textContent;
+  const blob = new Blob([data], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = document.getElementById("title").value + ".json";
+  a.click();
+}
+
+function clearAll() {
+  title.value = "";
+  author.value = "Ámbar";
+  tags.value = "";
+  content.value = "";
+  render.innerHTML = "";
+  jsonOutput.textContent = "";
+}
+</script>
+
+</body>
+</html>
