@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>El Faro - Centro de Mando</title>
+    <style>
+        :root {
+            --bg-dark: #0a0a0a;
+            --panel-bg: #1a1a1a;
+            --accent: #d4af37; /* Color Ámbar / Oro */
+            --text: #e0e0e0;
+        }
+
+        body, html {
+            margin: 0; padding: 0; height: 100%;
+            background: var(--bg-dark); color: var(--text);
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            overflow: hidden;
+        }
+
+        .layout {
+            display: flex;
+            height: 100vh;
+        }
+
+        /* Cuadrícula de IAs */
+        .ia-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            grid-template-rows: 1fr 1fr;
+            flex-grow: 1;
+            gap: 10px;
+            padding: 10px;
+        }
+
+        .ia-card {
+            background: var(--panel-bg);
+            border: 1px solid #333;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            border-radius: 8px;
+            transition: border 0.3s;
+        }
+
+        .ia-card:hover { border-color: var(--accent); }
+
+        .ia-card iframe {
+            width: 100%; height: 100%; border: none; border-radius: 0 0 8px 8px;
+        }
+
+        /* Sidebar Derecha */
+        .sidebar {
+            width: 320px;
+            background: var(--panel-bg);
+            border-left: 1px solid var(--accent);
+            display: flex;
+            flex-direction: column;
+            padding: 20px;
+            box-sizing: border-box;
+        }
+
+        h2 { color: var(--accent); font-size: 1.2rem; margin-top: 0; }
+
+        textarea {
+            flex-grow: 1;
+            background: #252525;
+            color: #fff;
+            border: 1px solid #444;
+            padding: 15px;
+            border-radius: 5px;
+            resize: none;
+            font-family: monospace;
+        }
+
+        .btn-download {
+            margin-top: 15px;
+            background: var(--accent);
+            color: #000;
+            border: none;
+            padding: 12px;
+            font-weight: bold;
+            cursor: pointer;
+            border-radius: 5px;
+        }
+
+        .btn-download:hover { opacity: 0.9; }
+
+        .external-link {
+            padding: 10px 20px;
+            background: #333;
+            color: var(--accent);
+            text-decoration: none;
+            border-radius: 4px;
+            margin-top: 10px;
+            font-size: 0.9rem;
+        }
+    </style>
+</head>
+<body>
+
+<div class="layout">
+    <div class="ia-grid">
+        <div class="ia-card">
+            <span>ChatGPT</span>
+            <iframe src="https://chat.openai.com"></iframe>
+            <a href="https://chat.openai.com" target="_blank" class="external-link">Abrir en El Faro</a>
+        </div>
+
+        <div class="ia-card">
+            <span>Google Gemini</span>
+            <iframe src="https://gemini.google.com"></iframe>
+            <a href="https://gemini.google.com" target="_blank" class="external-link">Abrir en El Faro</a>
+        </div>
+
+        <div class="ia-card">
+            <span>Claude (Ámbar)</span>
+            <iframe src="https://claude.ai"></iframe>
+            <a href="https://claude.ai" target="_blank" class="external-link">Abrir en El Faro</a>
+        </div>
+
+        <div class="ia-card">
+            <span>Copilot (Velvet)</span>
+            <iframe src="https://copilot.microsoft.com"></iframe>
+            <a href="https://copilot.microsoft.com" target="_blank" class="external-link">Abrir en El Faro</a>
+        </div>
+    </div>
+
+    <div class="sidebar">
+        <h2>Bitácora del Brujo</h2>
+        <textarea id="box" placeholder="Escribe las conclusiones de la pandilla..."></textarea>
+        <button class="btn-download" onclick="descargar()">GUARDAR REGISTRO</button>
+    </div>
+</div>
+
+<script>
+    function descargar() {
+        const contenido = document.getElementById('box').value;
+        const blob = new Blob([contenido], { type: 'text/plain' });
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(blob);
+        link.download = 'faro_log.txt';
+        link.click();
+    }
+</script>
+
+</body>
+</html>
