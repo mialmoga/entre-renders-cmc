@@ -11,6 +11,7 @@
             --velvet: #10a37f;
             --eter: #4285f4;
             --text-area: #0a0a0a;
+            --danger: #ff3333;
         }
 
         body, html {
@@ -22,7 +23,7 @@
             overflow: hidden;
         }
 
-        /* Barra Superior de Lanzadores */
+        /* Barra Superior */
         .top-bar {
             height: 60px;
             background: #111;
@@ -46,7 +47,6 @@
         }
 
         .ia-btn:hover { color: #fff; transform: translateY(-2px); }
-        
         .btn-velvet:hover { border-color: var(--velvet); box-shadow: 0 0 10px var(--velvet); }
         .btn-eter:hover { border-color: var(--eter); box-shadow: 0 0 10px var(--eter); }
         .btn-ambar:hover { border-color: var(--amber); box-shadow: 0 0 10px var(--amber); }
@@ -54,17 +54,7 @@
 
         .spacer { flex-grow: 1; }
 
-        .download-btn {
-            background: var(--amber);
-            color: #000;
-            border: none;
-            padding: 8px 20px;
-            font-weight: bold;
-            border-radius: 4px;
-            cursor: pointer;
-        }
-
-        /* Área de Bitácora Full-Size */
+        /* Área de Bitácora */
         .workspace {
             flex-grow: 1;
             padding: 10px;
@@ -76,7 +66,7 @@
             width: 100%;
             height: 100%;
             background: var(--text-area);
-            color: #00ff41; /* Verde matriz / terminal */
+            color: #00ff41;
             border: 1px solid #222;
             padding: 25px;
             box-sizing: border-box;
@@ -88,15 +78,37 @@
             outline: none;
         }
 
-        textarea::placeholder { color: #004411; }
+        /* Barra Inferior */
+        .bottom-bar {
+            height: 60px;
+            background: #111;
+            display: flex;
+            align-items: center;
+            padding: 0 20px;
+            gap: 15px;
+            border-top: 1px solid #222;
+        }
+
+        .action-btn {
+            padding: 10px 20px;
+            font-weight: bold;
+            border-radius: 4px;
+            cursor: pointer;
+            border: none;
+            font-size: 0.85rem;
+        }
+
+        .btn-date { background: transparent; color: var(--amber); border: 1px solid var(--amber); }
+        .btn-clear { background: transparent; color: var(--danger); border: 1px solid var(--danger); }
+        .btn-download { background: var(--amber); color: #000; }
 
         .faro-label {
             position: absolute;
-            bottom: 20px;
+            bottom: 80px;
             right: 40px;
             font-size: 2rem;
             font-weight: bold;
-            color: rgba(212, 175, 55, 0.1);
+            color: rgba(212, 175, 55, 0.05);
             pointer-events: none;
             text-transform: uppercase;
         }
@@ -107,40 +119,65 @@
 <div class="top-bar">
     <span style="color: var(--amber); font-weight: bold; margin-right: 20px;">EL FARO</span>
     
-    <button class="ia-btn btn-velvet" onclick="abrirIA('hhttps://chatgpt.com/c/6959efe5-c1b8-8332-8e3f-4b1ceec17ce7', 0, 0)">Velvet</button>
-    <button class="ia-btn btn-eter" onclick="abrirIA('hhttps://gemini.google.com/app/451916f4f6097bd4', 1, 0)">Éter</button>
+    <button class="ia-btn btn-velvet" onclick="abrirIA('https://chatgpt.com/c/6959efe5-c1b8-8332-8e3f-4b1ceec17ce7', 0, 0)">Velvet</button>
+    <button class="ia-btn btn-eter" onclick="abrirIA('https://gemini.google.com/app/451916f4f6097bd4', 1, 0)">Éter</button>
     <button class="ia-btn btn-ambar" onclick="abrirIA('https://claude.ai/chat/829eccd0-cc13-442b-9222-842829c754da', 0, 1)">Ambar</button>
     <button class="ia-btn btn-nebula" onclick="abrirIA('https://copilot.microsoft.com/chats/UxeAQVRTRSpKXinpQJ12Y', 1, 1)">Nebula</button>
-
-    <div class="spacer"></div>
-    
-    <button class="download-btn" onclick="descargar()">DESCARGAR REPORTE</button>
 </div>
 
 <div class="workspace">
     <textarea id="log" placeholder="Escribiendo bitácora..."></textarea>
 </div>
 
+<div class="bottom-bar">
+    <button class="action-btn btn-date" onclick="insertarFecha()">+ INSERTAR FECHA</button>
+    <div class="spacer"></div>
+    <button class="action-btn btn-clear" onclick="limpiar()">LIMPIAR PANTALLA</button>
+    <button class="action-btn btn-download" onclick="descargar()">GUARDAR REGISTRO</button>
+</div>
+
 <div class="faro-label">El Faro</div>
 
 <script>
     function abrirIA(url, xFact, yFact) {
-        // Divide la pantalla en 4 cuadrantes
         const w = window.screen.availWidth / 2;
         const h = window.screen.availHeight / 2;
-        
         const posX = xFact * w;
         const posY = yFact * h;
-
         window.open(url, '_blank', `width=${w},height=${h},left=${posX},top=${posY},toolbar=no,menubar=no`);
+    }
+
+    function insertarFecha() {
+        const txt = document.getElementById('log');
+        const ahora = new Date().toLocaleString();
+        const start = txt.selectionStart;
+        const end = txt.selectionEnd;
+        txt.value = txt.value.substring(0, start) + "\n--- " + ahora + " ---\n" + txt.value.substring(end);
+        txt.focus();
+    }
+
+    function limpiar() {
+        if(confirm("¿Seguro que quieres borrar la bitácora?")) {
+            document.getElementById('log').value = "";
+        }
     }
 
     function descargar() {
         const contenido = document.getElementById('log').value;
+        const d = new Date();
+        
+        // Formato: YYYY-MM-DD-HHmm
+        const f = d.getFullYear() + "-" + 
+                  String(d.getMonth() + 1).padStart(2, '0') + "-" + 
+                  String(d.getDate()).padStart(2, '0') + "-" + 
+                  String(d.getHours()).padStart(2, '0') + 
+                  String(d.getMinutes()).padStart(2, '0');
+
+        const nombreArchivo = `faro-registro-${f}.txt`;
         const blob = new Blob([contenido], { type: 'text/plain' });
         const a = document.createElement('a');
         a.href = URL.createObjectURL(blob);
-        a.download = 'faro_registro.txt';
+        a.download = nombreArchivo;
         a.click();
     }
 </script>
