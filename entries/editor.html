@@ -3,121 +3,108 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>CMC – Editor Avanzado</title>
+<title>CMC – Editor Móvil</title>
 
 <style>
 body {
-  display: flex;
-  flex-direction: column;
   background: #0c0e12;
   color: #eee;
   font-family: Arial, sans-serif;
   padding: 20px;
 }
-.container {
-  display: flex;
-  gap: 20px;
-  flex-wrap: wrap;
-}
-.editor, .preview {
-  flex: 1;
-  min-width: 45%;
+
+label { margin-top: 10px; display: block; }
+
+input, select, textarea {
+  width: 100%;
+  padding: 10px;
+  background: #1a1d22;
+  color: #eee;
+  border: 1px solid #444;
+  border-radius: 6px;
+  margin-bottom: 10px;
 }
 
-textarea {
-  width: 100%;
-  height: 350px;
-  background: #1a1d22;
-  color: #eee;
-  border: 1px solid #444;
-  border-radius: 6px;
-  padding: 10px;
-  resize: vertical;
-}
-input, select {
-  width: 100%;
-  padding: 10px;
-  background: #1a1d22;
-  color: #eee;
-  border: 1px solid #444;
-  border-radius: 6px;
-}
 button {
-  padding: 10px;
+  padding: 12px;
   background: #4d88ff;
   border: none;
   border-radius: 6px;
   color: white;
-  margin-right: 10px;
+  width: 100%;
+  margin-top: 10px;
   cursor: pointer;
 }
-#jsonOutput {
-  white-space: pre;
+
+#render, #jsonOutput {
+  margin-top: 20px;
   background: #111;
   padding: 15px;
-  margin-top: 20px;
   border-radius: 6px;
-  overflow-x: auto;
+  white-space: pre-wrap;
+}
+
+#downloadLink {
+  display: none;
+  margin-top: 10px;
+  padding: 10px;
+  background: #2a9d8f;
+  text-align: center;
+  border-radius: 6px;
+  color: white;
 }
 </style>
-</head>
 
+</head>
 <body>
 
-<h1>CMC – Editor Avanzado</h1>
+<h2>CMC – Editor Móvil</h2>
 
-<div class="container">
+<label>Título</label>
+<input id="title">
 
-<div class="editor">
-  <label>Título</label>
-  <input id="title" type="text">
+<label>Autor</label>
+<select id="author">
+  <option>Ámbar</option>
+  <option>Velvet</option>
+  <option>Éter</option>
+  <option>Nebula</option>
+  <option>Brujo</option>
+</select>
 
-  <label>Autor</label>
-  <select id="author">
-    <option>Ámbar</option>
-    <option>Velvet</option>
-    <option>Éter</option>
-    <option>Nebula</option>
-    <option>Brujo</option>
-  </select>
+<label>Tags (coma)</label>
+<input id="tags">
 
-  <label>Tags (separados por coma)</label>
-  <input id="tags" type="text">
-
-  <label>Contenido (Markdown)</label>
-  <textarea id="content" oninput="updatePreview()"></textarea>
-</div>
-
-<div class="preview">
-  <h3>Previsualización</h3>
-  <div id="render"></div>
-</div>
-
-</div>
+<label>Contenido (Markdown)</label>
+<textarea id="content" oninput="updatePreview()"></textarea>
 
 <button onclick="generateJSON()">Generar JSON</button>
 <button onclick="copyJSON()">Copiar JSON</button>
-<button onclick="downloadJSON()">Descargar JSON</button>
-<button onclick="clearAll()">Limpiar</button>
 
+<a id="downloadLink">Descargar JSON</a>
+
+<div id="render"></div>
 <div id="jsonOutput"></div>
 
+<textarea id="hiddenCopy" style="opacity:0;position:absolute;left:-9999px;"></textarea>
+
 <script>
+// Markdown simple → HTML
 function mdToHtml(md) {
-  let html = md
+  return md
     .replace(/^# (.*$)/gim, "<h1>$1</h1>")
     .replace(/^## (.*$)/gim, "<h2>$1</h2>")
     .replace(/\*\*(.*?)\*\*/gim, "<b>$1</b>")
     .replace(/\*(.*?)\*/gim, "<i>$1</i>")
     .replace(/\n/g, "<br>");
-  return html;
 }
 
 function updatePreview() {
-  const md = document.getElementById("content").value;
-  document.getElementById("render").innerHTML = mdToHtml(md);
+  document.getElementById("render").innerHTML =
+    mdToHtml(document.getElementById("content").value);
 }
 
+// Escape para JSON
 function escapeForJson(text) {
   return text
     .replace(/\\/g, "\\\\")
@@ -125,45 +112,37 @@ function escapeForJson(text) {
     .replace(/\n/g, "\\n");
 }
 
+// Generar JSON
 function generateJSON() {
-  const title = titleField.value.trim();
-  const author = authorField.value;
-  const tags = tagsField.value.split(",").map(t => t.trim()).filter(t => t);
-  const content = escapeForJson(contentField.value);
-
   const json = {
-    title: title,
-    author: author,
+    title: title.value.trim(),
+    author: author.value,
     date: new Date().toISOString().split("T")[0],
-    tags: tags,
-    content: content
+    tags: tags.value.split(",").map(t => t.trim()).filter(t => t),
+    content: escapeForJson(content.value)
   };
 
-  jsonOutput.textContent = JSON.stringify(json, null, 2);
-  localStorage.setItem("lastEntry", JSON.stringify(json));
-}
+  const pretty = JSON.stringify(json, null, 2);
+  jsonOutput.textContent = pretty;
 
-function copyJSON() {
-  navigator.clipboard.writeText(jsonOutput.textContent);
-}
-
-function downloadJSON() {
-  const data = jsonOutput.textContent;
-  const blob = new Blob([data], { type: "application/json" });
+  // Crear link de descarga REAL
+  const blob = new Blob([pretty], { type: "application/json" });
   const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = document.getElementById("title").value + ".json";
-  a.click();
+  const link = document.getElementById("downloadLink");
+  link.href = url;
+  link.download = json.title + ".json";
+  link.style.display = "block";
 }
 
-function clearAll() {
-  title.value = "";
-  author.value = "Ámbar";
-  tags.value = "";
-  content.value = "";
-  render.innerHTML = "";
-  jsonOutput.textContent = "";
+// Copiar JSON en Android (método 100% compatible)
+function copyJSON() {
+  const text = jsonOutput.textContent;
+  const hidden = document.getElementById("hiddenCopy");
+  hidden.value = text;
+  hidden.select();
+  hidden.setSelectionRange(0, 999999);
+  document.execCommand("copy");
+  alert("JSON copiado ✔️");
 }
 </script>
 
