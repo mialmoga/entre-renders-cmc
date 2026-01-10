@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Panel de Control - El Brujo</title>
+    <style>
+        body, html {
+            margin: 0;
+            padding: 0;
+            height: 100%;
+            font-family: Arial, sans-serif;
+            overflow: hidden;
+        }
+
+        .main-container {
+            display: flex;
+            height: 100vh;
+            width: 100vw;
+        }
+
+        /* Área de las IAs (Cuadrícula 2x2) */
+        .ia-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            grid-template-rows: 1fr 1fr;
+            flex-grow: 1;
+            gap: 5px;
+            background-color: #333;
+            padding: 5px;
+        }
+
+        .ia-box {
+            background: #fff;
+            border-radius: 4px;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .ia-box iframe {
+            width: 100%;
+            height: 100%;
+            border: none;
+        }
+
+        .ia-label {
+            background: #222;
+            color: white;
+            padding: 5px 10px;
+            font-size: 12px;
+            display: flex;
+            justify-content: space-between;
+        }
+
+        /* Panel Derecho (Descarga) */
+        .sidebar {
+            width: 300px;
+            background-color: #f4f4f4;
+            border-left: 2px solid #ccc;
+            display: flex;
+            flex-direction: column;
+            padding: 15px;
+            box-sizing: border-box;
+        }
+
+        textarea {
+            flex-grow: 1;
+            width: 100%;
+            margin-bottom: 10px;
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            resize: none;
+            box-sizing: border-box;
+        }
+
+        button {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            padding: 12px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+
+        button:hover {
+            background-color: #0056b3;
+        }
+
+        .msg-error {
+            font-size: 11px;
+            color: #666;
+            text-align: center;
+            margin-top: auto;
+        }
+    </style>
+</head>
+<body>
+
+<div class="main-container">
+    <div class="ia-grid">
+        <div class="ia-box">
+            <div class="ia-label">ChatGPT <a href="https://chat.openai.com" target="_blank" style="color:cyan">Abrir externo</a></div>
+            <iframe src="https://chat.openai.com"></iframe>
+        </div>
+        <div class="ia-box">
+            <div class="ia-label">Google Gemini <a href="https://gemini.google.com" target="_blank" style="color:cyan">Abrir externo</a></div>
+            <iframe src="https://gemini.google.com"></iframe>
+        </div>
+        <div class="ia-box">
+            <div class="ia-label">Claude (Ámbar) <a href="https://claude.ai" target="_blank" style="color:cyan">Abrir externo</a></div>
+            <iframe src="https://claude.ai"></iframe>
+        </div>
+        <div class="ia-box">
+            <div class="ia-label">Copilot <a href="https://copilot.microsoft.com" target="_blank" style="color:cyan">Abrir externo</a></div>
+            <iframe src="https://copilot.microsoft.com"></iframe>
+        </div>
+    </div>
+
+    <div class="sidebar">
+        <h3>Notas del Brujo</h3>
+        <textarea id="textInput" placeholder="Escribe algo aquí para descargar..."></textarea>
+        <button onclick="downloadText()">Descargar TXT</button>
+        <p class="msg-error">Nota: Si las ventanas de IA aparecen en blanco, es debido a restricciones de seguridad (X-Frame) de los proveedores.</p>
+    </div>
+</div>
+
+<script>
+    function downloadText() {
+        const text = document.getElementById('textInput').value;
+        if (!text) {
+            alert("Escribe algo antes de descargar.");
+            return;
+        }
+        const blob = new Blob([text], { type: 'text/plain' });
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'notas_ia.txt';
+        a.click();
+        window.URL.revokeObjectURL(url);
+    }
+</script>
+
+</body>
+</html>
