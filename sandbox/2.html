@@ -1,0 +1,671 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sandbox Autómata v0.2 - Q-Learning</title>
+    <script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+    <script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.5/babel.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            background: #0a0a0a;
+            color: #fff;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: #1a1a1a;
+            border-radius: 12px;
+            padding: 24px;
+        }
+        
+        .header {
+            margin-bottom: 24px;
+        }
+        
+        .header h1 {
+            font-size: 28px;
+            margin-bottom: 8px;
+        }
+        
+        .header p {
+            color: #888;
+            font-size: 14px;
+        }
+        
+        .main-layout {
+            display: flex;
+            gap: 24px;
+        }
+        
+        .grid-container {
+            flex-shrink: 0;
+        }
+        
+        .grid {
+            border: 2px solid #333;
+            display: inline-block;
+            background: #0a0a0a;
+        }
+        
+        .cell {
+            display: inline-block;
+            background: #2a2a2a;
+            position: relative;
+        }
+        
+        .automata {
+            width: 100%;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: rgba(255, 255, 255, 0.9);
+            border-radius: 50%;
+            font-size: 16px;
+        }
+        
+        .vision-highlight {
+            border: 2px solid rgba(255, 255, 0, 0.5);
+        }
+        
+        .panel {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+        
+        .card {
+            background: #252525;
+            padding: 20px;
+            border-radius: 8px;
+        }
+        
+        .controls {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 16px;
+        }
+        
+        button {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 10px 16px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            transition: all 0.2s;
+        }
+        
+        .btn-primary {
+            background: #2563eb;
+            color: white;
+        }
+        
+        .btn-primary:hover {
+            background: #1d4ed8;
+        }
+        
+        .btn-secondary {
+            background: #404040;
+            color: white;
+        }
+        
+        .btn-secondary:hover {
+            background: #525252;
+        }
+        
+        .btn-success {
+            background: #16a34a;
+            color: white;
+        }
+        
+        .btn-success:hover {
+            background: #15803d;
+        }
+        
+        .stat {
+            margin-bottom: 12px;
+        }
+        
+        .stat-header {
+            display: flex;
+            justify-content: space-between;
+            font-size: 13px;
+            margin-bottom: 4px;
+        }
+        
+        .progress-bar {
+            width: 100%;
+            height: 16px;
+            background: #404040;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+        
+        .progress-fill {
+            height: 100%;
+            transition: all 0.3s;
+            border-radius: 8px;
+        }
+        
+        .stat-row {
+            font-size: 13px;
+            color: #aaa;
+            margin-bottom: 6px;
+        }
+        
+        .stat-label {
+            color: #888;
+        }
+        
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 13px;
+            margin-bottom: 6px;
+        }
+        
+        .color-box {
+            width: 16px;
+            height: 16px;
+            border-radius: 3px;
+        }
+        
+        .log {
+            flex: 1;
+            min-height: 150px;
+        }
+        
+        .log h3 {
+            margin-bottom: 12px;
+            font-size: 16px;
+        }
+        
+        .log-content {
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+        }
+        
+        .log-entry {
+            color: #4ade80;
+            margin-bottom: 4px;
+        }
+        
+        .log-thought {
+            color: #60a5fa;
+            margin-bottom: 4px;
+        }
+        
+        .log-empty {
+            color: #666;
+            font-style: italic;
+        }
+        
+        .badge {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 11px;
+            font-weight: 600;
+            margin-left: 8px;
+        }
+        
+        .badge-training {
+            background: #f59e0b;
+            color: #000;
+        }
+        
+        .badge-smart {
+            background: #8b5cf6;
+            color: #fff;
+        }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useRef } = React;
+
+        const GRID_SIZE = 20;
+        const CELL_SIZE = 25;
+        const TICK_SPEED = 150;
+        const VISION_RADIUS = 3;
+
+        const STIMULI = {
+            LUMVYN: { color: '#ff4444', energy: 20, speed: -5, name: 'Lumvyn' },
+            SOLVRYN: { color: '#44ff44', energy: -10, speed: 10, name: 'Solvryn' },
+            NORYTH: { color: '#4444ff', energy: 5, speed: 0, name: 'Noryth' }
+        };
+
+        // Q-Learning simple
+        class QLearning {
+            constructor() {
+                this.qTable = {};
+                this.learningRate = 0.1;
+                this.discountFactor = 0.9;
+                this.epsilon = 0.3; // Exploración vs explotación
+            }
+
+            getStateKey(vision, energy) {
+                // Simplificamos el estado: dirección del mejor estímulo + nivel de energía
+                let bestDir = 'none';
+                let bestValue = -Infinity;
+                
+                vision.forEach(stim => {
+                    const value = STIMULI[stim.type].energy;
+                    if (value > bestValue) {
+                        bestValue = value;
+                        bestDir = stim.direction;
+                    }
+                });
+
+                const energyLevel = energy > 70 ? 'high' : energy > 30 ? 'med' : 'low';
+                return `${bestDir}_${energyLevel}`;
+            }
+
+            getAction(state) {
+                // Epsilon-greedy: explorar vs explotar
+                if (Math.random() < this.epsilon) {
+                    // Explorar: acción aleatoria
+                    return Math.floor(Math.random() * 4);
+                }
+
+                // Explotar: mejor acción conocida
+                if (!this.qTable[state]) {
+                    this.qTable[state] = [0, 0, 0, 0]; // arriba, abajo, izq, der
+                }
+
+                const qValues = this.qTable[state];
+                return qValues.indexOf(Math.max(...qValues));
+            }
+
+            update(state, action, reward, nextState) {
+                if (!this.qTable[state]) {
+                    this.qTable[state] = [0, 0, 0, 0];
+                }
+                if (!this.qTable[nextState]) {
+                    this.qTable[nextState] = [0, 0, 0, 0];
+                }
+
+                const currentQ = this.qTable[state][action];
+                const maxNextQ = Math.max(...this.qTable[nextState]);
+                
+                // Fórmula Q-Learning
+                const newQ = currentQ + this.learningRate * (
+                    reward + this.discountFactor * maxNextQ - currentQ
+                );
+
+                this.qTable[state][action] = newQ;
+            }
+        }
+
+        function SandboxAutomata() {
+            const [grid, setGrid] = useState([]);
+            const [automata, setAutomata] = useState({
+                x: 10,
+                y: 10,
+                energy: 100,
+                speed: 5,
+                memory: []
+            });
+            const [running, setRunning] = useState(false);
+            const [training, setTraining] = useState(false);
+            const [log, setLog] = useState([]);
+            const [steps, setSteps] = useState(0);
+            const intervalRef = useRef(null);
+            const qLearning = useRef(new QLearning());
+            const lastState = useRef(null);
+            const lastAction = useRef(null);
+
+            useEffect(() => {
+                initializeGrid();
+            }, []);
+
+            const initializeGrid = () => {
+                const newGrid = Array(GRID_SIZE).fill(null).map(() => 
+                    Array(GRID_SIZE).fill(null)
+                );
+                
+                const stimuliTypes = Object.keys(STIMULI);
+                for (let i = 0; i < 20; i++) {
+                    const x = Math.floor(Math.random() * GRID_SIZE);
+                    const y = Math.floor(Math.random() * GRID_SIZE);
+                    const type = stimuliTypes[Math.floor(Math.random() * stimuliTypes.length)];
+                    newGrid[y][x] = type;
+                }
+                
+                setGrid(newGrid);
+            };
+
+            const addLog = (message, isThought = false) => {
+                setLog(prev => [...prev.slice(-6), { msg: message, thought: isThought }]);
+            };
+
+            const getVision = (x, y) => {
+                const visible = [];
+                
+                for (let dy = -VISION_RADIUS; dy <= VISION_RADIUS; dy++) {
+                    for (let dx = -VISION_RADIUS; dx <= VISION_RADIUS; dx++) {
+                        if (dx === 0 && dy === 0) continue;
+                        
+                        const nx = x + dx;
+                        const ny = y + dy;
+                        
+                        if (nx >= 0 && nx < GRID_SIZE && ny >= 0 && ny < GRID_SIZE) {
+                            const cell = grid[ny]?.[nx];
+                            if (cell) {
+                                let direction = '';
+                                if (Math.abs(dx) > Math.abs(dy)) {
+                                    direction = dx > 0 ? 'derecha' : 'izquierda';
+                                } else {
+                                    direction = dy > 0 ? 'abajo' : 'arriba';
+                                }
+                                
+                                visible.push({
+                                    type: cell,
+                                    x: nx,
+                                    y: ny,
+                                    direction,
+                                    distance: Math.abs(dx) + Math.abs(dy)
+                                });
+                            }
+                        }
+                    }
+                }
+                
+                return visible;
+            };
+
+            const moveAutomata = () => {
+                setAutomata(prev => {
+                    const vision = getVision(prev.x, prev.y);
+                    const state = qLearning.current.getStateKey(vision, prev.energy);
+                    const action = training ? 
+                        qLearning.current.getAction(state) : 
+                        Math.floor(Math.random() * 4);
+
+                    const directions = [
+                        { dx: 0, dy: -1, name: 'arriba' },
+                        { dx: 0, dy: 1, name: 'abajo' },
+                        { dx: -1, dy: 0, name: 'izquierda' },
+                        { dx: 1, dy: 0, name: 'derecha' }
+                    ];
+
+                    const move = directions[action];
+                    let newX = Math.max(0, Math.min(GRID_SIZE - 1, prev.x + move.dx));
+                    let newY = Math.max(0, Math.min(GRID_SIZE - 1, prev.y + move.dy));
+                    let newEnergy = prev.energy - 1;
+                    let newSpeed = prev.speed;
+                    const newMemory = [...prev.memory];
+                    let reward = -0.1; // Pequeño costo por moverse
+
+                    // Describir lo que ve
+                    if (vision.length > 0 && training) {
+                        const closest = vision.reduce((a, b) => 
+                            a.distance < b.distance ? a : b
+                        );
+                        addLog(`Veo ${STIMULI[closest.type].name} a ${closest.distance} pasos`, true);
+                    }
+
+                    const stimulus = grid[newY]?.[newX];
+                    if (stimulus) {
+                        const stimData = STIMULI[stimulus];
+                        newEnergy += stimData.energy;
+                        newSpeed = Math.max(1, prev.speed + stimData.speed);
+                        reward = stimData.energy / 10; // Recompensa proporcional
+                        
+                        newMemory.push({
+                            type: stimulus,
+                            effect: stimData.energy > 0 ? 'bueno' : 'malo',
+                            location: { x: newX, y: newY }
+                        });
+
+                        addLog(`Consumí ${stimData.name}: ${stimData.energy > 0 ? '😊' : '😞'} energía ${stimData.energy > 0 ? '+' : ''}${stimData.energy}`);
+
+                        setGrid(g => {
+                            const newGrid = g.map(row => [...row]);
+                            newGrid[newY][newX] = null;
+                            return newGrid;
+                        });
+                    }
+
+                    newEnergy = Math.max(0, Math.min(150, newEnergy));
+
+                    // Penalización extra si energía baja
+                    if (newEnergy < 20) {
+                        reward -= 0.5;
+                    }
+
+                    if (newEnergy === 0) {
+                        addLog('💀 Sin energía... morí');
+                        reward = -10;
+                        setRunning(false);
+                    }
+
+                    // Actualizar Q-Learning
+                    if (training && lastState.current !== null) {
+                        const nextState = qLearning.current.getStateKey(
+                            getVision(newX, newY), 
+                            newEnergy
+                        );
+                        qLearning.current.update(
+                            lastState.current,
+                            lastAction.current,
+                            reward,
+                            nextState
+                        );
+                    }
+
+                    lastState.current = state;
+                    lastAction.current = action;
+
+                    setSteps(s => s + 1);
+
+                    return {
+                        x: newX,
+                        y: newY,
+                        energy: newEnergy,
+                        speed: newSpeed,
+                        memory: newMemory.slice(-10)
+                    };
+                });
+            };
+
+            useEffect(() => {
+                if (running) {
+                    intervalRef.current = setInterval(moveAutomata, TICK_SPEED);
+                } else {
+                    if (intervalRef.current) clearInterval(intervalRef.current);
+                }
+                return () => {
+                    if (intervalRef.current) clearInterval(intervalRef.current);
+                };
+            }, [running, grid, training]);
+
+            const reset = () => {
+                setRunning(false);
+                setAutomata({
+                    x: 10,
+                    y: 10,
+                    energy: 100,
+                    speed: 5,
+                    memory: []
+                });
+                setLog([]);
+                setSteps(0);
+                lastState.current = null;
+                lastAction.current = null;
+                initializeGrid();
+            };
+
+            const getEnergyColor = () => {
+                if (automata.energy > 50) return '#44ff44';
+                if (automata.energy > 20) return '#ffaa44';
+                return '#ff4444';
+            };
+
+            const isInVision = (x, y) => {
+                const dx = Math.abs(x - automata.x);
+                const dy = Math.abs(y - automata.y);
+                return dx <= VISION_RADIUS && dy <= VISION_RADIUS && (dx > 0 || dy > 0);
+            };
+
+            return (
+                <div className="container">
+                    <div className="header">
+                        <h1>
+                            Sandbox Autómata v0.2
+                            {training && <span className="badge badge-training">ENTRENANDO</span>}
+                            {!training && steps > 50 && <span className="badge badge-smart">MODO INTELIGENTE</span>}
+                        </h1>
+                        <p>Con Q-Learning: visión 3x3, aprende a buscar energía positiva</p>
+                    </div>
+
+                    <div className="main-layout">
+                        <div className="grid-container">
+                            <div className="grid">
+                                {grid.map((row, y) => (
+                                    <div key={y} style={{ height: CELL_SIZE, whiteSpace: 'nowrap' }}>
+                                        {row.map((cell, x) => (
+                                            <div
+                                                key={`${x}-${y}`}
+                                                className={`cell ${isInVision(x, y) ? 'vision-highlight' : ''}`}
+                                                style={{
+                                                    width: CELL_SIZE,
+                                                    height: CELL_SIZE,
+                                                    backgroundColor: cell ? STIMULI[cell].color : '#2a2a2a'
+                                                }}
+                                            >
+                                                {automata.x === x && automata.y === y && (
+                                                    <div className="automata">🤖</div>
+                                                )}
+                                            </div>
+                                        ))}
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+
+                        <div className="panel">
+                            <div className="card">
+                                <div className="controls">
+                                    <button 
+                                        onClick={() => setRunning(!running)}
+                                        className="btn-primary"
+                                    >
+                                        {running ? '⏸ Pausar' : '▶ Iniciar'}
+                                    </button>
+                                    <button 
+                                        onClick={() => {
+                                            setTraining(!training);
+                                            if (!training) addLog('🧠 Modo aprendizaje activado');
+                                        }}
+                                        className="btn-success"
+                                    >
+                                        {training ? '🧠 Entrenando' : '🎲 Random'}
+                                    </button>
+                                    <button 
+                                        onClick={reset}
+                                        className="btn-secondary"
+                                    >
+                                        ↻ Reset
+                                    </button>
+                                </div>
+
+                                <div className="stat">
+                                    <div className="stat-header">
+                                        <span>Energía</span>
+                                        <span>{automata.energy}/150</span>
+                                    </div>
+                                    <div className="progress-bar">
+                                        <div 
+                                            className="progress-fill"
+                                            style={{
+                                                width: `${(automata.energy / 150) * 100}%`,
+                                                backgroundColor: getEnergyColor()
+                                            }}
+                                        />
+                                    </div>
+                                </div>
+
+                                <div className="stat-row">
+                                    <span className="stat-label">Pasos:</span> {steps}
+                                </div>
+                                <div className="stat-row">
+                                    <span className="stat-label">Velocidad:</span> {automata.speed}
+                                </div>
+                                <div className="stat-row">
+                                    <span className="stat-label">Posición:</span> ({automata.x}, {automata.y})
+                                </div>
+                                <div className="stat-row">
+                                    <span className="stat-label">Memorias:</span> {automata.memory.length}
+                                </div>
+                                <div className="stat-row">
+                                    <span className="stat-label">Estados aprendidos:</span> {Object.keys(qLearning.current.qTable).length}
+                                </div>
+                            </div>
+
+                            <div className="card">
+                                <h3 style={{ marginBottom: '12px' }}>⚡ Estímulos</h3>
+                                {Object.entries(STIMULI).map(([key, stim]) => (
+                                    <div key={key} className="legend-item">
+                                        <div 
+                                            className="color-box"
+                                            style={{ backgroundColor: stim.color }}
+                                        />
+                                        <span>{stim.name}:</span>
+                                        <span style={{ color: '#888' }}>
+                                            energía {stim.energy > 0 ? '+' : ''}{stim.energy}, 
+                                            velocidad {stim.speed > 0 ? '+' : ''}{stim.speed}
+                                        </span>
+                                    </div>
+                                ))}
+                                <div style={{ marginTop: '12px', fontSize: '12px', color: '#666' }}>
+                                    💡 Borde amarillo = campo de visión (3 celdas)
+                                </div>
+                            </div>
+
+                            <div className="card log">
+                                <h3>Pensamientos y Acciones</h3>
+                                <div className="log-content">
+                                    {log.length === 0 ? (
+                                        <div className="log-empty">Esperando...</div>
+                                    ) : (
+                                        log.map((entry, i) => (
+                                            <div 
+                                                key={i} 
+                                                className={entry.thought ? 'log-thought' : 'log-entry'}
+                                            >
+                                                {entry.thought ? '💭 ' : '> '}{entry.msg}
+                                            </div>
+                                        ))
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
+        ReactDOM.render(<SandboxAutomata />, document.getElementById('root'));
+    </script>
+</body>
+</html>
