@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nerdy Audio Player</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #1a1a1a;
+            color: #e0e0e0;
+        }
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+        }
+        h1 {
+            text-align: center;
+            color: #4CAF50;
+        }
+        #fileInput {
+            display: none;
+        }
+        .upload-btn {
+            display: block;
+            width: 100%;
+            padding: 10px;
+            background-color: #4CAF50;
+            color: white;
+            text-align: center;
+            cursor: pointer;
+            margin-bottom: 20px;
+        }
+        canvas {
+            width: 100%;
+            height: 100px;
+            background-color: #2a2a2a;
+            margin-bottom: 10px;
+        }
+        .info-panel {
+            background-color: #2a2a2a;
+            padding: 10px;
+            margin-bottom: 10px;
+            border-radius: 5px;
+        }
+        .info-item {
+            margin-bottom: 5px;
+        }
+        .volume-control {
+            display: flex;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+        .volume-control label {
+            margin-right: 10px;
+        }
+        input[type="range"] {
+            width: 100%;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Nerdy Audio Player</h1>
+        <label for="fileInput" class="upload-btn">Upload Audio File</label>
+        <input type="file" id="fileInput" accept="audio/*">
+        
+        <div class="volume-control">
+            <label for="volumeLeft">Left Volume:</label>
+            <input type="range" id="volumeLeft" min="0" max="1" step="0.1" value="1">
+        </div>
+        <div class="volume-control">
+            <label for="volumeRight">Right Volume:</label>
+            <input type="range" id="volumeRight" min="0" max="1" step="0.1" value="1">
+        </div>
+        
+        <canvas id="waveformLeft"></canvas>
+        <canvas id="waveformRight"></canvas>
+        <canvas id="waveformCombined"></canvas>
+        <canvas id="spectrumAnalyzer"></canvas>
+        
+        <div class="info-panel">
+            <div class="info-item" id="currentTime"></div>
+            <div class="info-item" id="duration"></div>
+            <div class="info-item" id="currentLoudness"></div>
+            <div class="info-item" id="currentPitch"></div>
+            <div class="info-item" id="fileHash"></div>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/spark-md5/3.0.2/spark-md5.min.js"></script>
+    <script>
+        const fileInput = document.getElementById('fileInput');
+        const volumeLeftControl = document.getElementById('volumeLeft');
+        const volumeRightControl = document.getElementById('volumeRight');
+        const waveformLeftCanvas = document.getElementById('waveformLeft');
+        const waveformRightCanvas = document.getElementById('waveformRight');
+        const waveformCombinedCanvas = document.getElementById('waveformCombined');
+        const spectrumAnalyzerCanvas = document.getElementById('spectrumAnalyzer');
+        const currentTimeElement = document.getElementById('currentTime');
+        const durationElement = document.getElementById('duration');
+        const currentLoudnessElement = document.getElementById('currentLoudness');
+        const currentPitchElement = document.getElementById('currentPitch');
+        const fileHashElement = document.getElementById('fileHash');
+
+        let audioContext;
+        let sourceNode;
+        let analyserNode;
+        let splitterNode;
+        let mergerNode;
+        let gainNodeLeft;
+        let gainNodeRight;
+
+        fileInput.addEventListener('change', handleFileUpload);
+
+        function handleFileUpload(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const arrayBuffer = e.target.result;
+                initializeAudio(arrayBuffer);
+                calculateFileHash(arrayBuffer);
+            };
+            reader.readAsArrayBuffer(file);
+        }
+
+        function initializeAudio(arrayBuffer) {
+            if (audioContext) audioContext.close();
+
+            audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            audioContext.decodeAudioData(arrayBuffer, (buffer) => {
+                sourceNode = audioContext.createBufferSource();
+                sourceNode.buffer = buffer;
+
+                analyserNode = audioContext.createAnalyser();
+                analyserNode.fftSize = 2048;
+
+                splitterNode = audioContext.createChannelSplitter(2);
+                mergerNode = audioContext.createChannelMerger(2);
+
+                gainNodeLeft = audioContext.createGain();
+                gainNodeRight = audioContext.createGain();
+
+                sourceNode.connect(splitterNode);
+                splitterNode.connect(gainNodeLeft, 0);
+                splitterNode.connect(gainNodeRight, 1);
+                gainNodeLeft.connect(mergerNode, 0, 0);
+                gainNodeRight.connect(mergerNode, 0, 1);
+                mergerNode.connect(analyserNode);
+                analyserNode.connect(audioContext.destination);
+
+                sourceNode.start(0);
+                startVisualization();
+                updateAudioInfo();
+            });
+        }
+
+        function startVisualization() {
+            const drawWaveform = (canvas, dataArray) => {
+                const canvasCtx = canvas.getContext('2d');
+                const width = canvas.width;
+                const height = canvas.height;
+                canvasCtx.clearRect(0, 0, width, height);
+                canvasCtx.lineWidth = 2;
+                canvasCtx.strokeStyle = '#4CAF50';
+                canvasCtx.beginPath();
+                const sliceWidth = width * 1.0 / dataArray.length;
+                let x = 0;
+                for (let i = 0; i < dataArray.length; i++) {
+                    const v = dataArray[i] / 128.0;
+                    const y = v * height / 2;
+                    if (i === 0) {
+                        canvasCtx.moveTo(x, y);
+                    } else {
+                        canvasCtx.lineTo(x, y);
+                    }
+                    x += sliceWidth;
+                }
+                canvasCtx.lineTo(width, height / 2);
+                canvasCtx.stroke();
+            };
+
+            const drawSpectrum = () => {
+                const canvasCtx = spectrumAnalyzerCanvas.getContext('2d');
+                const width = spectrumAnalyzerCanvas.width;
+                const height = spectrumAnalyzerCanvas.height;
+                const dataArray = new Uint8Array(analyserNode.frequencyBinCount);
+                analyserNode.getByteFrequencyData(dataArray);
+                canvasCtx.clearRect(0, 0, width, height);
+                const barWidth = (width / dataArray.length) * 2.5;
+                let x = 0;
+                for (let i = 0; i < dataArray.length; i++) {
+                    const barHeight = dataArray[i] / 2;
+                    canvasCtx.fillStyle = `rgb(${barHeight + 100}, 50, 50)`;
+                    canvasCtx.fillRect(x, height - barHeight, barWidth, barHeight);
+                    x += barWidth + 1;
+                }
+            };
+
+            function animate() {
+                requestAnimationFrame(animate);
+                const dataArrayLeft = new Uint8Array(analyserNode.frequencyBinCount);
+                const dataArrayRight = new Uint8Array(analyserNode.frequencyBinCount);
+                const dataArrayCombined = new Uint8Array(analyserNode.frequencyBinCount);
+                analyserNode.getByteTimeDomainData(dataArrayCombined);
+                // Simulate left and right channel data
+                for (let i = 0; i < dataArrayCombined.length; i++) {
+                    dataArrayLeft[i] = dataArrayCombined[i] * gainNodeLeft.gain.value;
+                    dataArrayRight[i] = dataArrayCombined[i] * gainNodeRight.gain.value;
+                }
+                drawWaveform(waveformLeftCanvas, dataArrayLeft);
+                drawWaveform(waveformRightCanvas, dataArrayRight);
+                drawWaveform(waveformCombinedCanvas, dataArrayCombined);
+                drawSpectrum();
+                updateCurrentInfo();
+            }
+
+            animate();
+        }
+
+        function updateAudioInfo() {
+            const duration = sourceNode.buffer.duration;
+            durationElement.textContent = `Duration: ${duration.toFixed(2)} seconds`;
+        }
+
+        function updateCurrentInfo() {
+            const currentTime = audioContext.currentTime % sourceNode.buffer.duration;
+            currentTimeElement.textContent = `Current Time: ${currentTime.toFixed(2)} seconds`;
+
+            // Calculate current loudness (RMS)
+            const dataArray = new Float32Array(analyserNode.frequencyBinCount);
+            analyserNode.getFloatTimeDomainData(dataArray);
+            const rms = Math.sqrt(dataArray.reduce((sum, val) => sum + val * val, 0) / dataArray.length);
+            const loudnessDb = 20 * Math.log10(rms);
+            currentLoudnessElement.textContent = `Current Loudness: ${loudnessDb.toFixed(2)} dB`;
+
+            // Estimate current pitch (simple zero-crossing method)
+            let zeroCrossings = 0;
+            for (let i = 1; i < dataArray.length; i++) {
+                if ((dataArray[i - 1] < 0 && dataArray[i] >= 0) || (dataArray[i - 1] >= 0 && dataArray[i] < 0)) {
+                    zeroCrossings++;
+                }
+            }
+            const estimatedFrequency = (zeroCrossings * audioContext.sampleRate) / (2 * dataArray.length);
+            currentPitchElement.textContent = `Estimated Pitch: ${estimatedFrequency.toFixed(2)} Hz`;
+        }
+
+        function calculateFileHash(arrayBuffer) {
+            const spark = new SparkMD5.ArrayBuffer();
+            spark.append(arrayBuffer);
+            const hash = spark.end();
+            fileHashElement.textContent = `File Hash (MD5): ${hash}`;
+        }
+
+        volumeLeftControl.addEventListener('input', (e) => {
+            if (gainNodeLeft) gainNodeLeft.gain.setValueAtTime(e.target.value, audioContext.currentTime);
+        });
+
+        volumeRightControl.addEventListener('input', (e) => {
+            if (gainNodeRight) gainNodeRight.gain.setValueAtTime(e.target.value, audioContext.currentTime);
+        });
+    </script>
+</body>
+  </html>
