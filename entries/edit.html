@@ -21,6 +21,7 @@
         #render { background: #161b22; padding: 15px; border-radius: 8px; border-left: 4px solid #4d88ff; min-height: 50px; margin-top: 10px; }
         #jsonOutput { background: #000; color: #9fffad; padding: 15px; border-radius: 8px; font-family: monospace; white-space: pre-wrap; font-size: 12px; margin-top: 10px; border: 1px solid #222; }
         .avatar-preview { width: 50px; height: 50px; border-radius: 8px; vertical-align: middle; margin-right: 10px; border: 2px solid #4d88ff; }
+        hr { border: 0; border-top: 1px solid #444; margin: 20px 0; }
     </style>
 </head>
 <body>
@@ -62,7 +63,7 @@
     </div>
     <textarea id="content" rows="10" placeholder="Escribe aquí..." oninput="updateAll()"></textarea>
 
-    <label>Previsualización:</label>
+    <label>Previsualización en Tiempo Real:</label>
     <div id="render"></div>
 
     <button class="main-btn" onclick="copyJSON()">📋 Copiar JSON Final</button>
@@ -76,10 +77,11 @@
             return texto.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]/g, "-").replace(/-+/g, "-").trim();
         }
 
-        // Traductor MD con soporte H2 coincidente con loader.js
+        // Traductor MD sincronizado con loader.js
         function mdToHtml(md) {
             return md
                 .replace(/^## (.*$)/gim, "<h2>$1</h2>")
+                .replace(/^---$/gim, "<hr>")
                 .replace(/\*\*(.*?)\*\*/gim, "<b>$1</b>")
                 .replace(/\*(.*?)\*/gim, "<i>$1</i>")
                 .replace(/\n/g, "<br>");
