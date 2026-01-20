@@ -15,6 +15,7 @@ async function loadAllEntries() {
     if (!res.ok) throw new Error("No se pudo cargar el index.json");
     const files = await res.json();
 
+    // Limpieza de contenedor para evitar duplicados
     container.innerHTML = '';
 
     for (let file of files) {
@@ -24,15 +25,18 @@ async function loadAllEntries() {
 
         const entry = await entryRes.json();
 
-        // VALIDACIÓN: Si no tiene contenido o tags, saltar para evitar errores
+        // Validación de campos obligatorios
         if (!entry.content || !entry.tags) {
-            console.error(`Formato incompleto en: ${file}`);
+            console.warn(`Archivo incompleto: ${file}`);
             continue;
         }
 
+        // Corrección de ruta de imagen para la raíz
         const cleanAvatarPath = entry.avatar.replace(/^\.\.\//, "");
 
+        // TRADUCTOR DE MARKDOWN COMPLETO (Ahora incluye H2)
         const contentFormatted = entry.content
+          .replace(/^## (.*$)/gim, "<h2>$1</h2>") // Conversión de títulos ##
           .replace(/\*\*(.*?)\*\*/gim, "<b>$1</b>")
           .replace(/\*(.*?)\*/gim, "<i>$1</i>")
           .replace(/\\n/g, "<br>")
@@ -50,19 +54,22 @@ async function loadAllEntries() {
             </div>
           </div>
           <div class="content">${contentFormatted}</div>
-          <div class="tags">${entry.tags.map(t => `<span class="tag">#${t}</span>`).join(' ')}</div>
+          <div class="tags">
+            ${entry.tags.map(t => `<span class="tag">#${t}</span>`).join(' ')}
+          </div>
         `;
 
         container.appendChild(card);
       } catch (fileErr) {
-        console.error(`Error procesando ${file}: El JSON podría estar mal formado.`);
+        console.error(`Error en JSON ${file}:`, fileErr);
       }
     }
   } catch (error) {
-    console.error("Error crítico en el cargador:", error);
+    console.error("Error crítico en loader:", error);
   }
 }
 
+// Ejecución única
 // Ejecutamos la función. 
 // Nota: Si tienes un <script onload="loadAllEntries()"> en el HTML, 
 // borra esta línea para que no se llame dos veces.
