@@ -13,14 +13,14 @@
         border: 1px solid #333; border-radius: 8px; margin-bottom: 10px; box-sizing: border-box;
     }
     .toolbar { display: flex; gap: 5px; flex-wrap: wrap; margin-bottom: 10px; }
-    .toolbar button { width: auto; flex: 1; padding: 8px; background: #2a2a48; font-size: 12px; }
-    button { 
+    .toolbar button { width: auto; flex: 1; padding: 8px; background: #2a2a48; font-size: 12px; color: white; border: 1px solid #444; border-radius: 4px; cursor: pointer; }
+    button.main-btn { 
         padding: 15px; background: #4d88ff; border: none; border-radius: 8px; 
         color: white; width: 100%; cursor: pointer; font-weight: bold; margin-bottom: 10px;
     }
     #render { background: #161b22; padding: 15px; border-radius: 8px; border-left: 4px solid #4d88ff; min-height: 50px; margin-top: 10px; }
     #jsonOutput { background: #000; color: #9fffad; padding: 15px; border-radius: 8px; font-family: monospace; white-space: pre-wrap; font-size: 12px; margin-top: 10px; border: 1px solid #222; }
-    .avatar-preview { width: 50px; height: 50px; border-radius: 8px; vertical-align: middle; margin-right: 10px; }
+    .avatar-preview { width: 50px; height: 50px; border-radius: 8px; vertical-align: middle; margin-right: 10px; border: 2px solid #4d88ff; }
 </style>
 </head>
 <body>
@@ -42,8 +42,16 @@
     </select>
 </div>
 
-<label>Tags (separadas por coma)</label>
-<input id="tags" placeholder="lore, sandbox, updates" oninput="updateAll()">
+<label>Categoría</label>
+<select id="category" onchange="updateAll()">
+    <option value="lore">Lore</option>
+    <option value="comida">Comida</option>
+    <option value="sistema">Sistema</option>
+    <option value="test">Test</option>
+</select>
+
+<label>Tags / Keywords (separadas por coma)</label>
+<input id="tags" placeholder="ej: felicidad, huevo, sandbox" oninput="updateAll()">
 
 <label>Contenido (Markdown)</label>
 <div class="toolbar">
@@ -52,19 +60,18 @@
     <button onclick="insertMd('## ', '')">H2</button>
     <button onclick="insertMd('\n---\n', '')">—</button>
 </div>
-<textarea id="content" rows="10" placeholder="Escribe aquí... Usa **negrita** o *cursiva*" oninput="updateAll()"></textarea>
+<textarea id="content" rows="10" placeholder="Escribe aquí..." oninput="updateAll()"></textarea>
 
-<label>Previsualización en Tiempo Real:</label>
+<label>Previsualización:</label>
 <div id="render"></div>
 
-<button onclick="copyJSON()">📋 Copiar JSON Final</button>
-<button onclick="downloadJSON()" style="background: #238636;">💾 Descargar .json</button>
+<button class="main-btn" onclick="copyJSON()">📋 Copiar JSON Final</button>
+<button class="main-btn" onclick="downloadJSON()" style="background: #238636;">💾 Descargar .json Estandarizado</button>
 
 <label>Salida JSON:</label>
 <div id="jsonOutput"></div>
 
 <script>
-// Traductor de Markdown a HTML (de editor.html)
 function mdToHtml(md) {
     return md
         .replace(/^# (.*$)/gim, "<h1>$1</h1>")
@@ -74,7 +81,6 @@ function mdToHtml(md) {
         .replace(/\n/g, "<br>");
 }
 
-// Inserción de Markdown (estilo editorcmc pero para MD)
 function insertMd(before, after) {
     const area = document.getElementById("content");
     const start = area.selectionStart;
@@ -88,20 +94,19 @@ function insertMd(before, after) {
 function updateAll() {
     const titleVal = document.getElementById("title").value;
     const authorVal = document.getElementById("author").value;
+    const categoryVal = document.getElementById("category").value;
     const contentVal = document.getElementById("content").value;
-    const tagsVal = document.getElementById("tags").value.split(",").map(t => t.trim()).filter(t => t);
+    const tagsInput = document.getElementById("tags").value;
+    const tagsVal = tagsInput.split(",").map(t => t.trim().toLowerCase()).filter(t => t);
 
-    // Actualizar Avatar Visual (Ahora limpia á y é para las rutas de archivos)
     const avatarPath = `../assets/img/${authorVal.toLowerCase().replace("á", "a").replace("é", "e")}.png`;
     document.getElementById("currentAvatar").src = avatarPath;
-
-    // Actualizar Render
     document.getElementById("render").innerHTML = mdToHtml(contentVal);
 
-    // Generar JSON
     const json = {
         title: titleVal,
         author: authorVal,
+        category: categoryVal,
         date: new Date().toISOString().split("T")[0],
         avatar: avatarPath,
         tags: tagsVal,
@@ -117,17 +122,23 @@ function copyJSON() {
 }
 
 function downloadJSON() {
+    const author = document.getElementById("author").value.toLowerCase().replace("á", "a").replace("é", "e");
+    const category = document.getElementById("category").value.toLowerCase();
+    const tagsInput = document.getElementById("tags").value;
+    const firstTag = tagsInput.split(",")[0].trim().toLowerCase().replace(/\s+/g, "-") || "entrada";
+    
+    // Formato: 'autor'-'categoria'-'keyword'.json
+    const fileName = `${author}-${category}-${firstTag}.json`;
+    
     const text = document.getElementById("jsonOutput").textContent;
-    const title = document.getElementById("title").value || "entrada";
     const blob = new Blob([text], { type: "application/json" });
     const a = document.createElement("a");
     a.href = URL.createObjectURL(blob);
-    a.download = title.replace(/\s+/g, "_") + ".json";
+    a.download = fileName;
     a.click();
 }
 
-// Inicializar
 updateAll();
 </script>
 </body>
-  </html>
+</html>
