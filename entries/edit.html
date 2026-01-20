@@ -42,9 +42,11 @@
         </select>
     </div>
 
-    <label>Categoría (desde categorias.json)</label>
+    <label>Categoría</label>
     <select id="category" onchange="updateAll()">
-        <option value="">Cargando categorías...</option>
+        <option value="lore">Lore</option>
+        <option value="comida">Comida</option>
+        <option value="sistema">Sistema</option>
     </select>
 
     <label>Tags / Keywords (separadas por coma)</label>
@@ -69,54 +71,19 @@
     <div id="jsonOutput"></div>
 
     <script>
-        // Función para limpiar acentos, espacios y caracteres especiales
         function limpiarTexto(texto) {
-            return texto
-                .toLowerCase()
-                .normalize("NFD")
-                .replace(/[\u0300-\u036f]/g, "") // Quita acentos
-                .replace(/[^a-z0-9]/g, "-")      // Todo lo no alfanumérico a guion
-                .replace(/-+/g, "-")             // Evita guiones dobles
-                .trim();
-        }
-
-        // Carga dinámica de categorías
-        async function cargarCategorias() {
-            try {
-                const response = await fetch('categorias.json');
-                if (!response.ok) throw new Error("No se pudo cargar el archivo de categorías");
-                const categorias = await response.json();
-                const selector = document.getElementById('category');
-                selector.innerHTML = ''; 
-                
-                categorias.forEach(cat => {
-                    let option = document.createElement('option');
-                    option.value = cat;
-                    option.textContent = cat;
-                    selector.appendChild(option);
-                });
-                updateAll();
-            } catch (err) {
-                console.error("Error cargando categorias.json:", err);
-                document.getElementById('category').innerHTML = '<option value="error">Error de carga</option>';
-            }
+            return texto.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]/g, "-").replace(/-+/g, "-").trim();
         }
 
         function mdToHtml(md) {
-            return md
-                .replace(/^# (.*$)/gim, "<h1>$1</h1>")
-                .replace(/^## (.*$)/gim, "<h2>$1</h2>")
-                .replace(/\*\*(.*?)\*\*/gim, "<b>$1</b>")
-                .replace(/\*(.*?)\*/gim, "<i>$1</i>")
-                .replace(/\n/g, "<br>");
+            return md.replace(/^## (.*$)/gim, "<h2>$1</h2>").replace(/\*\*(.*?)\*\*/gim, "<b>$1</b>").replace(/\*(.*?)\*/gim, "<i>$1</i>").replace(/\n/g, "<br>");
         }
 
         function insertMd(before, after) {
             const area = document.getElementById("content");
             const start = area.selectionStart;
             const end = area.selectionEnd;
-            const text = area.value;
-            area.value = text.substring(0, start) + before + text.substring(start, end) + after + text.substring(end);
+            area.value = area.value.substring(0, start) + before + area.value.substring(start, end) + after + area.value.substring(end);
             area.focus();
             updateAll();
         }
@@ -127,15 +94,11 @@
             const categoryVal = document.getElementById("category").value;
             const contentVal = document.getElementById("content").value;
             const tagsInput = document.getElementById("tags").value;
-            
-            // Limpieza de tags para el array del JSON
             const tagsVal = tagsInput.split(",").map(t => limpiarTexto(t)).filter(t => t);
 
-            // Generamos la ruta raíz para el JSON
             const authorClean = limpiarTexto(authorVal);
             const avatarPath = `assets/img/${authorClean}.png`;
             
-            // Usamos ../ para que la imagen se vea DENTRO del editor
             document.getElementById("currentAvatar").src = "../" + avatarPath;
             document.getElementById("render").innerHTML = mdToHtml(contentVal);
 
@@ -144,7 +107,7 @@
                 author: authorVal,
                 category: categoryVal,
                 date: new Date().toISOString().split("T")[0],
-                avatar: avatarPath, // Ruta guardada para index.html
+                avatar: avatarPath,
                 tags: tagsVal,
                 content: contentVal 
             };
@@ -152,23 +115,13 @@
             document.getElementById("jsonOutput").textContent = JSON.stringify(json, null, 2);
         }
 
-        function copyJSON() {
-            const text = document.getElementById("jsonOutput").textContent;
-            navigator.clipboard.writeText(text).then(() => alert("JSON copiado ✔️"));
-        }
-
         function downloadJSON() {
             const author = limpiarTexto(document.getElementById("author").value);
             const category = limpiarTexto(document.getElementById("category").value);
             const tagsInput = document.getElementById("tags").value;
+            const keyword = tagsInput.split(",")[0] ? limpiarTexto(tagsInput.split(",")[0]) : "entrada";
             
-            // Keyword: primera palabra de las tags
-            const firstTag = tagsInput.split(",")[0].trim();
-            const keyword = firstTag ? limpiarTexto(firstTag) : "entrada";
-            
-            // Formato: 'autor'-'categoria'-'keyword'.json
             const fileName = `${author}-${category}-${keyword}.json`;
-            
             const text = document.getElementById("jsonOutput").textContent;
             const blob = new Blob([text], { type: "application/json" });
             const a = document.createElement("a");
@@ -177,8 +130,7 @@
             a.click();
         }
 
-        // Inicializar cargando categorías externas
-        cargarCategorias();
+        updateAll();
     </script>
 </body>
 </html>
