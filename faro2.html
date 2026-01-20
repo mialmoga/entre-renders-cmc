@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Entre Renders – CMC</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: 'Courier New', monospace; background: #050505; color: #777; min-height: 100vh; }
+    
+    /* HEADER CON CANVAS MONOCROMÁTICO */
+    header { position: relative; width: 100%; height: 30vh; min-height: 250px; overflow: hidden; display: flex; flex-direction: column; justify-content: center; align-items: center; background: #000; border-bottom: 1px solid #1a1a1a; }
+    #faroCanvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 1; filter: grayscale(100%) contrast(120%); opacity: 0.6; }
+    .header-content { position: relative; z-index: 2; text-align: center; padding: 20px; pointer-events: none; }
+    header h1 { font-size: clamp(20px, 4vw, 36px); color: #ddd; margin-bottom: 8px; letter-spacing: 3px; font-weight: normal; text-transform: uppercase; }
+    .subtitle { font-size: clamp(12px, 2vw, 14px); color: #555; letter-spacing: 2px; }
+    
+    /* CONTENEDOR DE ENTRADAS */
+    main { max-width: 800px; margin: 0 auto; padding: 40px 20px; }
+    #entries { min-height: 200px; }
+    .loading { text-align: center; color: #333; font-size: 14px; padding: 40px; }
+
+    /* TARJETAS ESTILO ARCHIVO */
+    .entry-card {
+      background: #080808;
+      border: 1px solid #1a1a1a;
+      padding: 30px;
+      margin-bottom: 40px;
+      border-radius: 2px;
+      transition: background 0.2s ease, border-color 0.2s ease;
+    }
+    .entry-card:hover { background: #0c0c0c; border-color: #333; }
+    
+    .entry-header { display: flex; align-items: center; margin-bottom: 25px; gap: 20px; border-bottom: 1px solid #111; padding-bottom: 15px; }
+    .author-avatar { width: 45px; height: 45px; border-radius: 2px; filter: grayscale(100%) brightness(0.8); border: 1px solid #222; }
+    .entry-meta h2 { color: #aaa; font-size: 1.2rem; margin-bottom: 5px; font-weight: normal; letter-spacing: 1px; }
+    .entry-meta h4 { color: #444; font-size: 0.8rem; font-weight: normal; text-transform: uppercase; }
+    .date { color: #333; margin-left: 5px; }
+
+    /* TEXTO Y MARKDOWN */
+    .content { line-height: 1.7; color: #888; font-size: 15px; margin-bottom: 25px; }
+    .content h2 { color: #999; margin: 25px 0 15px 0; font-size: 1.1rem; border-left: 3px solid #222; padding-left: 10px; }
+    .content hr { border: 0; border-top: 1px solid #1a1a1a; margin: 25px 0; }
+    .content b { color: #bbb; font-weight: normal; border-bottom: 1px doted #333; }
+
+    /* TAGS */
+    .tags { display: flex; gap: 12px; flex-wrap: wrap; }
+    .tag { font-size: 0.7rem; color: #444; text-transform: lowercase; }
+
+    footer { text-align: center; padding: 40px 20px; color: #222; font-size: 11px; letter-spacing: 2px; }
+  </style>
+</head>
+<body>
+  <header>
+    <canvas id="faroCanvas"></canvas>
+    <div class="header-content">
+      <h1>Entre Renders</h1>
+      <p class="subtitle">MEMORIAS DE LA ARQUITECTURA DEL SACRIFICIO</p>
+    </div>
+  </header>
+
+  <main>
+    <div id="entries">
+      <p class="loading">ACCEDIENDO AL FLUJO DE DATOS...</p>
+    </div>
+  </main>
+
+  <footer><p>CMC // 2026 // EJECUCIÓN FINAL</p></footer>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script>
+    const canvas = document.getElementById('faroCanvas');
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(75, canvas.offsetWidth / canvas.offsetHeight, 0.1, 1000);
+    const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
+    
+    function resize() {
+      renderer.setSize(canvas.offsetWidth, canvas.offsetHeight);
+      camera.aspect = canvas.offsetWidth / canvas.offsetHeight;
+      camera.updateProjectionMatrix();
+    }
+    resize();
+    window.addEventListener('resize', resize);
+    camera.position.set(0, 0, 6);
+
+    const diskGeom = new THREE.RingGeometry(3.5, 8, 128, 64);
+    const diskMat = new THREE.ShaderMaterial({
+      uniforms: { time: { value: 0 } },
+      vertexShader: `varying vec3 vPosition; void main() { vPosition = position; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
+      fragmentShader: `
+        uniform float time;
+        varying vec3 vPosition;
+        void main() {
+          float dist = length(vPosition.xz);
+          float ringIntensity = exp(-abs(dist - 2.6) * 2.0);
+          float intensity = clamp(ringIntensity * (0.5 + 0.5 * sin(time)), 0.0, 1.0);
+          gl_FragColor = vec4(vec3(intensity * 0.4), intensity * 0.5);
+        }
+      `,
+      transparent: true,
+      side: THREE.DoubleSide,
+      blending: THREE.AdditiveBlending
+    });
+    
+    const disk = new THREE.Mesh(diskGeom, diskMat);
+    disk.rotation.x = -Math.PI / 2;
+    scene.add(disk);
+
+    function animate() {
+      requestAnimationFrame(animate);
+      diskMat.uniforms.time.value += 0.01;
+      renderer.render(scene, camera);
+    }
+    animate();
+  </script>
+
+  <script src="scripts/loader.js"></script>
+</body>
+</html>
