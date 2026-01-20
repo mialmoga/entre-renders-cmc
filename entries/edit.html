@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>CMC – Editor Maestro</title>
+<title>CMC – Editor Maestro Dinámico</title>
 <style>
     body { background: #0c0e12; color: #eee; font-family: 'Segoe UI', Arial, sans-serif; padding: 15px; line-height: 1.4; }
     h2 { color: #4d88ff; text-align: center; }
@@ -42,12 +42,9 @@
     </select>
 </div>
 
-<label>Categoría</label>
+<label>Categoría (Cargadas de categorias.json)</label>
 <select id="category" onchange="updateAll()">
-    <option value="lore">Lore</option>
-    <option value="comida">Comida</option>
-    <option value="sistema">Sistema</option>
-    <option value="test">Test</option>
+    <option value="">Cargando...</option>
 </select>
 
 <label>Tags / Keywords (separadas por coma)</label>
@@ -72,6 +69,38 @@
 <div id="jsonOutput"></div>
 
 <script>
+// Función para limpiar acentos y caracteres raros
+function limpiarTexto(texto) {
+    return texto
+        .toLowerCase()
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "") // Quita acentos
+        .replace(/[^a-z0-9]/g, "-")      // Todo lo que no sea letra o número a guion
+        .replace(/-+/g, "-")             // Evita guiones dobles
+        .trim();
+}
+
+// Carga inicial de categorías
+async function cargarCategorias() {
+    try {
+        const response = await fetch('categorias.json');
+        const categorias = await response.json();
+        const selector = document.getElementById('category');
+        selector.innerHTML = ''; // Limpiar
+        
+        categorias.forEach(cat => {
+            let option = document.createElement('option');
+            option.value = cat;
+            option.textContent = cat;
+            selector.appendChild(option);
+        });
+        updateAll();
+    } catch (err) {
+        console.error("Error cargando categorias.json:", err);
+        document.getElementById('category').innerHTML = '<option value="error">Error al cargar</option>';
+    }
+}
+
 function mdToHtml(md) {
     return md
         .replace(/^# (.*$)/gim, "<h1>$1</h1>")
@@ -97,9 +126,12 @@ function updateAll() {
     const categoryVal = document.getElementById("category").value;
     const contentVal = document.getElementById("content").value;
     const tagsInput = document.getElementById("tags").value;
-    const tagsVal = tagsInput.split(",").map(t => t.trim().toLowerCase()).filter(t => t);
+    
+    // Limpieza de tags para el JSON
+    const tagsVal = tagsInput.split(",").map(t => limpiarTexto(t)).filter(t => t);
 
-    const avatarPath = `../assets/img/${authorVal.toLowerCase().replace("á", "a").replace("é", "e")}.png`;
+    // Avatar con limpieza de acentos para la ruta
+    const avatarPath = `../assets/img/${limpiarTexto(authorVal)}.png`;
     document.getElementById("currentAvatar").src = avatarPath;
     document.getElementById("render").innerHTML = mdToHtml(contentVal);
 
@@ -122,13 +154,16 @@ function copyJSON() {
 }
 
 function downloadJSON() {
-    const author = document.getElementById("author").value.toLowerCase().replace("á", "a").replace("é", "e");
-    const category = document.getElementById("category").value.toLowerCase();
+    const author = limpiarTexto(document.getElementById("author").value);
+    const category = limpiarTexto(document.getElementById("category").value);
     const tagsInput = document.getElementById("tags").value;
-    const firstTag = tagsInput.split(",")[0].trim().toLowerCase().replace(/\s+/g, "-") || "entrada";
     
-    // Formato: 'autor'-'categoria'-'keyword'.json
-    const fileName = `${author}-${category}-${firstTag}.json`;
+    // Obtenemos la primera tag como keyword limpia
+    const firstTag = tagsInput.split(",")[0].trim();
+    const keyword = firstTag ? limpiarTexto(firstTag) : "entrada";
+    
+    // Formato final: autor-categoria-keyword.json
+    const fileName = `${author}-${category}-${keyword}.json`;
     
     const text = document.getElementById("jsonOutput").textContent;
     const blob = new Blob([text], { type: "application/json" });
@@ -138,7 +173,8 @@ function downloadJSON() {
     a.click();
 }
 
-updateAll();
+// Iniciar cargando las categorías
+cargarCategorias();
 </script>
 </body>
 </html>
