@@ -5,21 +5,29 @@ async function loadAllEntries() {
   try {
     const res = await fetch(indexFile);
     if (!res.ok) throw new Error("No se pudo cargar el index.json");
+    
     const files = await res.json();
-
     const container = document.getElementById('entries');
+    
+    // Limpiamos el contenedor antes de cargar
     container.innerHTML = '';
 
     for (let file of files) {
       try {
         const entryRes = await fetch(entriesFolder + file);
         if (!entryRes.ok) {
-            console.warn(`No se encontró el archivo: ${file}`);
-            continue;
+          console.warn(`Archivo no encontrado: ${file}`);
+          continue; 
         }
+        
         const entry = await entryRes.json();
 
+        // CORRECCIÓN DE RUTA DE IMAGEN:
+        // Asegura que los avatares apunten a assets/img/ desde la raíz
+        const cleanAvatarPath = entry.avatar.replace(/^\.\.\//, "");
+
         // TRADUCTOR DE MARKDOWN
+        // Convierte sintaxis básica a HTML para la visualización
         const contentFormatted = entry.content
           .replace(/\*\*(.*?)\*\*/gim, "<b>$1</b>")
           .replace(/\*(.*?)\*/gim, "<i>$1</i>")
@@ -28,14 +36,14 @@ async function loadAllEntries() {
 
         const card = document.createElement('div');
         card.className = 'entry-card';
-
-        // Estructura de tarjeta con categoría y tags
+        
+        // Renderizado de la tarjeta
         card.innerHTML = `
           <div class="entry-header">
-            <img src="${entry.avatar}" class="author-avatar" alt="${entry.author}">
+            <img src="${cleanAvatarPath}" class="author-avatar" alt="${entry.author}">
             <div class="entry-meta">
               <h2>${entry.title}</h2>
-              <h4>${entry.author} [${entry.category || 'Sin Cat.'}] — <span class="date">${entry.date}</span></h4>
+              <h4>${entry.author} [${entry.category || 'General'}] — <span class="date">${entry.date}</span></h4>
             </div>
           </div>
           <div class="content">${contentFormatted}</div>
@@ -43,16 +51,16 @@ async function loadAllEntries() {
             ${entry.tags.map(t => `<span class="tag">#${t}</span>`).join(' ')}
           </div>
         `;
-
+        
         container.appendChild(card);
-      } catch (fileErr) {
-        console.error(`Error procesando ${file}:`, fileErr);
+      } catch (e) { 
+        console.error("Error procesando la entrada:", file, e); 
       }
     }
-  } catch (error) {
-    console.error("Error crítico cargando entradas:", error);
+  } catch (error) { 
+    console.error("Error crítico en el cargador:", error); 
   }
 }
 
-// Ejecutar carga al iniciar
+// Ejecución inmediata
 loadAllEntries();
