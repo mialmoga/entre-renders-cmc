@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CMC – Editor Maestro</title>
+<style>
+    body { background: #0c0e12; color: #eee; font-family: 'Segoe UI', Arial, sans-serif; padding: 15px; line-height: 1.4; }
+    h2 { color: #4d88ff; text-align: center; }
+    label { margin-top: 10px; display: block; font-weight: bold; color: #9fc6ff; }
+    input, select, textarea { 
+        width: 100%; padding: 12px; background: #1a1d22; color: #eee; 
+        border: 1px solid #333; border-radius: 8px; margin-bottom: 10px; box-sizing: border-box;
+    }
+    .toolbar { display: flex; gap: 5px; flex-wrap: wrap; margin-bottom: 10px; }
+    .toolbar button { width: auto; flex: 1; padding: 8px; background: #2a2a48; font-size: 12px; }
+    button { 
+        padding: 15px; background: #4d88ff; border: none; border-radius: 8px; 
+        color: white; width: 100%; cursor: pointer; font-weight: bold; margin-bottom: 10px;
+    }
+    #render { background: #161b22; padding: 15px; border-radius: 8px; border-left: 4px solid #4d88ff; min-height: 50px; margin-top: 10px; }
+    #jsonOutput { background: #000; color: #9fffad; padding: 15px; border-radius: 8px; font-family: monospace; white-space: pre-wrap; font-size: 12px; margin-top: 10px; border: 1px solid #222; }
+    .avatar-preview { width: 50px; height: 50px; border-radius: 8px; vertical-align: middle; margin-right: 10px; }
+</style>
+</head>
+<body>
+
+<h2>✨ Editor Maestro CMC</h2>
+
+<label>Título</label>
+<input id="title" placeholder="Ej: Crónicas del Vacío" oninput="updateAll()">
+
+<label>Autor</label>
+<div style="display: flex; align-items: center;">
+    <img id="currentAvatar" src="../assets/img/brujo.png" class="avatar-preview">
+    <select id="author" onchange="updateAll()">
+        <option value="Brujo">Brujo</option>
+        <option value="Velvet">Velvet</option>
+        <option value="Ámbar">Ámbar</option>
+        <option value="Éter">Éter</option>
+        <option value="Nebula">Nebula</option>
+    </select>
+</div>
+
+<label>Tags (separadas por coma)</label>
+<input id="tags" placeholder="lore, sandbox, updates" oninput="updateAll()">
+
+<label>Contenido (Markdown)</label>
+<div class="toolbar">
+    <button onclick="insertMd('**', '**')"><b>B</b></button>
+    <button onclick="insertMd('*', '*')"><i>I</i></button>
+    <button onclick="insertMd('## ', '')">H2</button>
+    <button onclick="insertMd('\n---\n', '')">—</button>
+</div>
+<textarea id="content" rows="10" placeholder="Escribe aquí... Usa **negrita** o *cursiva*" oninput="updateAll()"></textarea>
+
+<label>Previsualización en Tiempo Real:</label>
+<div id="render"></div>
+
+<button onclick="copyJSON()">📋 Copiar JSON Final</button>
+<button onclick="downloadJSON()" style="background: #238636;">💾 Descargar .json</button>
+
+<label>Salida JSON:</label>
+<div id="jsonOutput"></div>
+
+<script>
+// Traductor de Markdown a HTML (de editor.html)
+function mdToHtml(md) {
+    return md
+        .replace(/^# (.*$)/gim, "<h1>$1</h1>")
+        .replace(/^## (.*$)/gim, "<h2>$1</h2>")
+        .replace(/\*\*(.*?)\*\*/gim, "<b>$1</b>")
+        .replace(/\*(.*?)\*/gim, "<i>$1</i>")
+        .replace(/\n/g, "<br>");
+}
+
+// Inserción de Markdown (estilo editorcmc pero para MD)
+function insertMd(before, after) {
+    const area = document.getElementById("content");
+    const start = area.selectionStart;
+    const end = area.selectionEnd;
+    const text = area.value;
+    area.value = text.substring(0, start) + before + text.substring(start, end) + after + text.substring(end);
+    area.focus();
+    updateAll();
+}
+
+function updateAll() {
+    const titleVal = document.getElementById("title").value;
+    const authorVal = document.getElementById("author").value;
+    const contentVal = document.getElementById("content").value;
+    const tagsVal = document.getElementById("tags").value.split(",").map(t => t.trim()).filter(t => t);
+
+    // Actualizar Avatar Visual
+    const avatarPath = `../assets/img/${authorVal.toLowerCase().replace("á", "a")}.png`;
+    document.getElementById("currentAvatar").src = avatarPath;
+
+    // Actualizar Render
+    document.getElementById("render").innerHTML = mdToHtml(contentVal);
+
+    // Generar JSON
+    const json = {
+        title: titleVal,
+        author: authorVal,
+        date: new Date().toISOString().split("T")[0],
+        avatar: avatarPath,
+        tags: tagsVal,
+        content: contentVal // Se guarda el Markdown original
+    };
+
+    document.getElementById("jsonOutput").textContent = JSON.stringify(json, null, 2);
+}
+
+function copyJSON() {
+    const text = document.getElementById("jsonOutput").textContent;
+    navigator.clipboard.writeText(text).then(() => alert("JSON copiado ✔️"));
+}
+
+function downloadJSON() {
+    const text = document.getElementById("jsonOutput").textContent;
+    const title = document.getElementById("title").value || "entrada";
+    const blob = new Blob([text], { type: "application/json" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = title.replace(/\s+/g, "_") + ".json";
+    a.click();
+}
+
+// Inicializar
+updateAll();
+</script>
+</body>
+  </html>
