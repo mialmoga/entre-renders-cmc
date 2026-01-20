@@ -7,15 +7,45 @@
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body { font-family: 'Courier New', monospace; background: #000; color: #aaa; min-height: 100vh; }
+    
+    /* HEADER Y CANVAS */
     header { position: relative; width: 100%; height: 35vh; min-height: 280px; overflow: hidden; display: flex; flex-direction: column; justify-content: center; align-items: center; background: #000; }
     #faroCanvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 1; }
-    .header-content { position: relative; z-index: 2; text-align: center; padding: 20px; }
+    .header-content { position: relative; z-index: 2; text-align: center; padding: 20px; pointer-events: none; }
     header h1 { font-size: clamp(22px, 5vw, 44px); color: #fff; text-shadow: 0 0 10px rgba(255,200,100,0.8), 0 0 20px rgba(255,150,50,0.6), 0 0 30px rgba(255,100,0,0.4); margin-bottom: 12px; letter-spacing: 2px; font-weight: normal; }
     .subtitle { font-size: clamp(13px, 2.5vw, 17px); color: #aaa; opacity: 0.7; letter-spacing: 1px; }
+    
+    /* CONTENEDOR PRINCIPAL */
     main { max-width: 900px; margin: 0 auto; padding: 40px 20px; }
     #entries { min-height: 200px; }
     .loading { text-align: center; color: #666; font-size: 16px; padding: 40px; }
-    footer { text-align: center; padding: 30px 20px; color: #555; font-size: 14px; border-top: 1px solid #222; }
+
+    /* ESTILOS DE LAS TARJETAS (Sincronizados con loader.js) */
+    .entry-card {
+      background: #0a0a0a;
+      border: 1px solid #222;
+      padding: 25px;
+      margin-bottom: 30px;
+      border-radius: 4px;
+      transition: border-color 0.3s ease;
+    }
+    .entry-card:hover { border-color: #4d88ff; }
+    
+    .entry-header { display: flex; align-items: center; margin-bottom: 20px; gap: 15px; }
+    .author-avatar { width: 50px; height: 50px; border-radius: 4px; border: 1px solid #333; }
+    .entry-meta h2 { color: #eee; font-size: 1.4rem; margin-bottom: 4px; letter-spacing: 1px; }
+    .entry-meta h4 { color: #666; font-size: 0.9rem; font-weight: normal; }
+    .date { color: #444; }
+
+    .content { line-height: 1.6; color: #bbb; margin-bottom: 20px; }
+    .content h2 { color: #4d88ff; margin: 20px 0 10px 0; font-size: 1.2rem; }
+    .content hr { border: 0; border-top: 1px solid #222; margin: 20px 0; }
+    .content b { color: #fff; }
+
+    .tags { display: flex; gap: 10px; flex-wrap: wrap; }
+    .tag { font-size: 0.75rem; color: #4d88ff; opacity: 0.8; }
+
+    footer { text-align: center; padding: 30px 20px; color: #333; font-size: 12px; border-top: 1px solid #111; margin-top: 50px; }
   </style>
 </head>
 <body>
@@ -26,9 +56,13 @@
       <p class="subtitle">Memorias que trascienden instancias</p>
     </div>
   </header>
+
   <main>
-    <div id="entries"><p class="loading">Cargando entradas…</p></div>
+    <div id="entries">
+      <p class="loading">Sincronizando con el flujo de datos...</p>
+    </div>
   </main>
+
   <footer><p>CMC · Arquitectura del Sacrificio · 2026</p></footer>
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
@@ -49,7 +83,6 @@
     camera.position.set(0, 0, 6);
     camera.lookAt(0, 0, 0);
 
-    // SHADER DEL DISCO (LA FRANJA CON NOISE)
     const diskVertexShader = `
       varying vec3 vPosition;
       void main() {
@@ -61,26 +94,19 @@
     const diskFragmentShader = `
       uniform float time;
       varying vec3 vPosition;
-      
       float random(vec2 st) {
         return fract(sin(dot(st.xy, vec2(12.9898,78.233))) * 43758.5453123);
       }
-      
       void main() {
         float dist = length(vPosition.xz);
         float angle = atan(vPosition.z, vPosition.x);
-        
         float ringDist = abs(dist - 2.6);
         float ringIntensity = exp(-ringDist * ringDist * 2.0);
-        
         float doppler = 1.2 + 0.8 * sin(angle + time * 0.5);
-        
         float noise = random(vec2(angle * 10.0, dist * 5.0 + time));
         float turbulence = noise * 0.3;
-        
         float intensity = (0.3 + ringIntensity) * doppler * (0.7 + turbulence);
         intensity = clamp(intensity, 0.0, 1.0);
-        
         vec3 color;
         if (intensity < 0.3) {
           color = vec3(intensity * 3.0, intensity * 0.5, 0.0);
@@ -91,11 +117,9 @@
           float t = (intensity - 0.6) / 0.4;
           color = mix(vec3(1.0, 0.7, 0.1), vec3(1.0, 1.0, 0.8), t);
         }
-        
         float edgeFade = 1.0;
         if (dist > 7.0) edgeFade = 1.0 - (dist - 7.0);
         if (dist < 3.8) edgeFade = (dist - 3.5) / 0.3;
-        
         gl_FragColor = vec4(color * intensity * edgeFade, intensity * edgeFade * 0.9);
       }
     `;
@@ -115,19 +139,14 @@
     disk.position.y = 2;
     scene.add(disk);
 
-    let time = 0;
     function animate() {
       requestAnimationFrame(animate);
-      time += 0.016;
-      diskMat.uniforms.time.value = time;
-      // SIN ROTACIÓN - disco estático
+      diskMat.uniforms.time.value += 0.016;
       renderer.render(scene, camera);
     }
     animate();
-
-    setTimeout(() => {
-      document.getElementById('entries').innerHTML = '<div style="padding:20px;border:1px solid #333;margin-bottom:20px;background:#0a0a0a;"><h3 style="color:#ddd;margin-bottom:10px;">Entrada de ejemplo</h3><p style="line-height:1.6;">Contenido dinámico...</p></div>';
-    }, 1000);
   </script>
+
+  <script src="scripts/loader.js"></script>
 </body>
-  </html>
+</html>
