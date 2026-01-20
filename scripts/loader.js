@@ -1,6 +1,7 @@
 /**
  * loader.js
  * Sistema de carga dinámica para El Faro
+ * Soporte completo: H2, Negritas, Cursivas y Separadores (---)
  */
 
 async function loadAllEntries() {
@@ -13,38 +14,44 @@ async function loadAllEntries() {
   try {
     const res = await fetch(indexFile);
     if (!res.ok) throw new Error("No se pudo cargar el index.json");
+    
     const files = await res.json();
-
+    
     // Limpieza de contenedor para evitar duplicados
     container.innerHTML = '';
 
     for (let file of files) {
       try {
         const entryRes = await fetch(entriesFolder + file);
-        if (!entryRes.ok) continue;
-
+        if (!entryRes.ok) {
+          console.warn(`Archivo no encontrado: ${file}`);
+          continue; 
+        }
+        
         const entry = await entryRes.json();
 
-        // Validación de campos obligatorios
+        // VALIDACIÓN DE CAMPOS: Saltamos archivos incompletos
         if (!entry.content || !entry.tags) {
-            console.warn(`Archivo incompleto: ${file}`);
-            continue;
+          console.error(`Formato incompleto en: ${file}`);
+          continue;
         }
 
-        // Corrección de ruta de imagen para la raíz
+        // CORRECCIÓN DE RUTA DE IMAGEN:
         const cleanAvatarPath = entry.avatar.replace(/^\.\.\//, "");
 
-        // TRADUCTOR DE MARKDOWN COMPLETO (Ahora incluye H2)
+        // TRADUCTOR DE MARKDOWN
+        // Se añade el reemplazo de --- por <hr>
         const contentFormatted = entry.content
-          .replace(/^## (.*$)/gim, "<h2>$1</h2>") // Conversión de títulos ##
-          .replace(/\*\*(.*?)\*\*/gim, "<b>$1</b>")
-          .replace(/\*(.*?)\*/gim, "<i>$1</i>")
-          .replace(/\\n/g, "<br>")
-          .replace(/\n/g, "<br>"); 
+          .replace(/^## (.*$)/gim, "<h2>$1</h2>")    // Títulos secundarios
+          .replace(/^---$/gim, "<hr>")               // SEPARADOR HORIZONTAL (Nuevo)
+          .replace(/\*\*(.*?)\*\*/gim, "<b>$1</b>")  // Negritas
+          .replace(/\*(.*?)\*/gim, "<i>$1</i>")      // Cursivas
+          .replace(/\\n/g, "<br>")                   // Saltos de línea escapados
+          .replace(/\n/g, "<br>");                   // Saltos de línea reales
 
         const card = document.createElement('div');
         card.className = 'entry-card';
-
+        
         card.innerHTML = `
           <div class="entry-header">
             <img src="${cleanAvatarPath}" class="author-avatar" alt="${entry.author}">
@@ -58,19 +65,18 @@ async function loadAllEntries() {
             ${entry.tags.map(t => `<span class="tag">#${t}</span>`).join(' ')}
           </div>
         `;
-
+        
         container.appendChild(card);
-      } catch (fileErr) {
-        console.error(`Error en JSON ${file}:`, fileErr);
+      } catch (fileErr) { 
+        console.error(`Error procesando el archivo individual: ${file}`, fileErr); 
       }
     }
-  } catch (error) {
-    console.error("Error crítico en loader:", error);
+  } catch (error) { 
+    console.error("Error crítico en el cargador:", error); 
   }
 }
 
-// Ejecución única
-// Ejecutamos la función. 
+// Ejecución automática al cargar el script
 // Nota: Si tienes un <script onload="loadAllEntries()"> en el HTML, 
 // borra esta línea para que no se llame dos veces.
 loadAllEntries();
