@@ -91,8 +91,8 @@ function updateAll() {
     const contentVal = document.getElementById("content").value;
     const tagsVal = document.getElementById("tags").value.split(",").map(t => t.trim()).filter(t => t);
 
-    // Actualizar Avatar Visual
-    const avatarPath = `../assets/img/${authorVal.toLowerCase().replace("á", "a")}.png`;
+    // Actualizar Avatar Visual (Ahora limpia á y é para las rutas de archivos)
+    const avatarPath = `../assets/img/${authorVal.toLowerCase().replace("á", "a").replace("é", "e")}.png`;
     document.getElementById("currentAvatar").src = avatarPath;
 
     // Actualizar Render
@@ -105,7 +105,7 @@ function updateAll() {
         date: new Date().toISOString().split("T")[0],
         avatar: avatarPath,
         tags: tagsVal,
-        content: contentVal // Se guarda el Markdown original
+        content: contentVal 
     };
 
     document.getElementById("jsonOutput").textContent = JSON.stringify(json, null, 2);
