@@ -27,15 +27,67 @@ header {
   margin-bottom: 25px;
   border-radius: 10px;
   backdrop-filter: blur(6px);
+  border: 1px solid rgba(255,255,255,0.1); /* Sutil borde para definir la card */
+}
+
+/* NUEVO: Contenedor para alinear Avatar y Título */
+.entry-header {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  margin-bottom: 15px;
+}
+
+/* NUEVO: Estilo del Avatar */
+.author-avatar {
+  width: 60px;
+  height: 60px;
+  border-radius: 12px;
+  object-fit: cover;
+  border: 1.5px solid #4d88ff; /* El azul que usamos en el editor */
 }
 
 .entry-card h2 {
-  margin-top: 0;
+  margin: 0;
+  font-size: 1.4em;
+  color: #9fc6ff;
+}
+
+.entry-card h4 {
+  margin: 5px 0 0 0;
+  font-weight: 400;
+  opacity: 0.8;
 }
 
 .entry-card .date {
   opacity: 0.6;
   font-size: 0.9em;
+}
+
+/* NUEVO: Espaciado para el contenido Markdown */
+.content {
+  line-height: 1.6;
+  margin-top: 15px;
+}
+
+.content b { color: #fff; } /* Resalte para negritas */
+.content i { color: #ccc; } /* Resalte para cursivas */
+
+/* NUEVO: Estilo de Tags */
+.tags {
+  margin-top: 15px;
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.tag {
+  background: rgba(77, 136, 255, 0.2);
+  color: #9fc6ff;
+  padding: 4px 10px;
+  border-radius: 15px;
+  font-size: 0.8em;
+  font-weight: bold;
 }
 
 footer {
