@@ -44,9 +44,10 @@
 
     <label>Categoría</label>
     <select id="category" onchange="updateAll()">
-        <option value="lore">Lore</option>
-        <option value="comida">Comida</option>
-        <option value="sistema">Sistema</option>
+        <option value="Lore">Lore</option>
+        <option value="Personaje">Personaje</option>
+        <option value="Comida">Comida</option>
+        <option value="Sistema">Sistema</option>
     </select>
 
     <label>Tags / Keywords (separadas por coma)</label>
@@ -75,8 +76,13 @@
             return texto.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]/g, "-").replace(/-+/g, "-").trim();
         }
 
+        // Traductor MD con soporte H2 coincidente con loader.js
         function mdToHtml(md) {
-            return md.replace(/^## (.*$)/gim, "<h2>$1</h2>").replace(/\*\*(.*?)\*\*/gim, "<b>$1</b>").replace(/\*(.*?)\*/gim, "<i>$1</i>").replace(/\n/g, "<br>");
+            return md
+                .replace(/^## (.*$)/gim, "<h2>$1</h2>")
+                .replace(/\*\*(.*?)\*\*/gim, "<b>$1</b>")
+                .replace(/\*(.*?)\*/gim, "<i>$1</i>")
+                .replace(/\n/g, "<br>");
         }
 
         function insertMd(before, after) {
