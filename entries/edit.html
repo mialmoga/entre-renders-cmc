@@ -43,12 +43,9 @@
         </select>
     </div>
 
-    <label>Categoría</label>
+    <label>Categoría (Cargadas de categorias.json)</label>
     <select id="category" onchange="updateAll()">
-        <option value="Lore">Lore</option>
-        <option value="Personaje">Personaje</option>
-        <option value="Comida">Comida</option>
-        <option value="Sistema">Sistema</option>
+        <option value="">Cargando...</option>
     </select>
 
     <label>Tags / Keywords (separadas por coma)</label>
@@ -77,7 +74,27 @@
             return texto.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]/g, "-").replace(/-+/g, "-").trim();
         }
 
-        // Traductor MD sincronizado con loader.js
+        // RESTAURADO: Función para cargar categorías desde el JSON externo
+        async function cargarCategorias() {
+            try {
+                const response = await fetch('categorias.json');
+                const categorias = await response.json();
+                const selector = document.getElementById('category');
+                selector.innerHTML = ''; 
+                
+                categorias.forEach(cat => {
+                    let option = document.createElement('option');
+                    option.value = cat;
+                    option.textContent = cat;
+                    selector.appendChild(option);
+                });
+                updateAll();
+            } catch (err) {
+                console.error("Error cargando categorias.json", err);
+                document.getElementById('category').innerHTML = '<option value="Error">Error al cargar</option>';
+            }
+        }
+
         function mdToHtml(md) {
             return md
                 .replace(/^## (.*$)/gim, "<h2>$1</h2>")
@@ -138,7 +155,8 @@
             a.click();
         }
 
-        updateAll();
+        // Inicializar cargando las categorías del archivo externo
+        cargarCategorias();
     </script>
 </body>
 </html>
