@@ -1,180 +1,184 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>CMC – Editor Maestro Dinámico</title>
-<style>
-    body { background: #0c0e12; color: #eee; font-family: 'Segoe UI', Arial, sans-serif; padding: 15px; line-height: 1.4; }
-    h2 { color: #4d88ff; text-align: center; }
-    label { margin-top: 10px; display: block; font-weight: bold; color: #9fc6ff; }
-    input, select, textarea { 
-        width: 100%; padding: 12px; background: #1a1d22; color: #eee; 
-        border: 1px solid #333; border-radius: 8px; margin-bottom: 10px; box-sizing: border-box;
-    }
-    .toolbar { display: flex; gap: 5px; flex-wrap: wrap; margin-bottom: 10px; }
-    .toolbar button { width: auto; flex: 1; padding: 8px; background: #2a2a48; font-size: 12px; color: white; border: 1px solid #444; border-radius: 4px; cursor: pointer; }
-    button.main-btn { 
-        padding: 15px; background: #4d88ff; border: none; border-radius: 8px; 
-        color: white; width: 100%; cursor: pointer; font-weight: bold; margin-bottom: 10px;
-    }
-    #render { background: #161b22; padding: 15px; border-radius: 8px; border-left: 4px solid #4d88ff; min-height: 50px; margin-top: 10px; }
-    #jsonOutput { background: #000; color: #9fffad; padding: 15px; border-radius: 8px; font-family: monospace; white-space: pre-wrap; font-size: 12px; margin-top: 10px; border: 1px solid #222; }
-    .avatar-preview { width: 50px; height: 50px; border-radius: 8px; vertical-align: middle; margin-right: 10px; border: 2px solid #4d88ff; }
-</style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>CMC – Editor Maestro Dinámico</title>
+    <style>
+        body { background: #0c0e12; color: #eee; font-family: 'Segoe UI', Arial, sans-serif; padding: 15px; line-height: 1.4; }
+        h2 { color: #4d88ff; text-align: center; }
+        label { margin-top: 10px; display: block; font-weight: bold; color: #9fc6ff; }
+        input, select, textarea { 
+            width: 100%; padding: 12px; background: #1a1d22; color: #eee; 
+            border: 1px solid #333; border-radius: 8px; margin-bottom: 10px; box-sizing: border-box;
+        }
+        .toolbar { display: flex; gap: 5px; flex-wrap: wrap; margin-bottom: 10px; }
+        .toolbar button { width: auto; flex: 1; padding: 8px; background: #2a2a48; font-size: 12px; color: white; border: 1px solid #444; border-radius: 4px; cursor: pointer; }
+        button.main-btn { 
+            padding: 15px; background: #4d88ff; border: none; border-radius: 8px; 
+            color: white; width: 100%; cursor: pointer; font-weight: bold; margin-bottom: 10px;
+        }
+        #render { background: #161b22; padding: 15px; border-radius: 8px; border-left: 4px solid #4d88ff; min-height: 50px; margin-top: 10px; }
+        #jsonOutput { background: #000; color: #9fffad; padding: 15px; border-radius: 8px; font-family: monospace; white-space: pre-wrap; font-size: 12px; margin-top: 10px; border: 1px solid #222; }
+        .avatar-preview { width: 50px; height: 50px; border-radius: 8px; vertical-align: middle; margin-right: 10px; border: 2px solid #4d88ff; }
+    </style>
 </head>
 <body>
 
-<h2>✨ Editor Maestro CMC</h2>
+    <h2>✨ Editor Maestro CMC</h2>
 
-<label>Título</label>
-<input id="title" placeholder="Ej: Crónicas del Vacío" oninput="updateAll()">
+    <label>Título</label>
+    <input id="title" placeholder="Ej: Crónicas del Vacío" oninput="updateAll()">
 
-<label>Autor</label>
-<div style="display: flex; align-items: center;">
-    <img id="currentAvatar" src="../assets/img/brujo.png" class="avatar-preview">
-    <select id="author" onchange="updateAll()">
-        <option value="Brujo">Brujo</option>
-        <option value="Velvet">Velvet</option>
-        <option value="Ámbar">Ámbar</option>
-        <option value="Éter">Éter</option>
-        <option value="Nebula">Nebula</option>
+    <label>Autor</label>
+    <div style="display: flex; align-items: center;">
+        <img id="currentAvatar" src="../assets/img/brujo.png" class="avatar-preview">
+        <select id="author" onchange="updateAll()">
+            <option value="Brujo">Brujo</option>
+            <option value="Velvet">Velvet</option>
+            <option value="Ambar">Ámbar</option>
+            <option value="Eter">Éter</option>
+            <option value="Nebula">Nebula</option>
+        </select>
+    </div>
+
+    <label>Categoría (desde categorias.json)</label>
+    <select id="category" onchange="updateAll()">
+        <option value="">Cargando categorías...</option>
     </select>
-</div>
 
-<label>Categoría (Cargadas de categorias.json)</label>
-<select id="category" onchange="updateAll()">
-    <option value="">Cargando...</option>
-</select>
+    <label>Tags / Keywords (separadas por coma)</label>
+    <input id="tags" placeholder="ej: felicidad, huevo, sandbox" oninput="updateAll()">
 
-<label>Tags / Keywords (separadas por coma)</label>
-<input id="tags" placeholder="ej: felicidad, huevo, sandbox" oninput="updateAll()">
+    <label>Contenido (Markdown)</label>
+    <div class="toolbar">
+        <button onclick="insertMd('**', '**')"><b>B</b></button>
+        <button onclick="insertMd('*', '*')"><i>I</i></button>
+        <button onclick="insertMd('## ', '')">H2</button>
+        <button onclick="insertMd('\n---\n', '')">—</button>
+    </div>
+    <textarea id="content" rows="10" placeholder="Escribe aquí..." oninput="updateAll()"></textarea>
 
-<label>Contenido (Markdown)</label>
-<div class="toolbar">
-    <button onclick="insertMd('**', '**')"><b>B</b></button>
-    <button onclick="insertMd('*', '*')"><i>I</i></button>
-    <button onclick="insertMd('## ', '')">H2</button>
-    <button onclick="insertMd('\n---\n', '')">—</button>
-</div>
-<textarea id="content" rows="10" placeholder="Escribe aquí..." oninput="updateAll()"></textarea>
+    <label>Previsualización:</label>
+    <div id="render"></div>
 
-<label>Previsualización:</label>
-<div id="render"></div>
+    <button class="main-btn" onclick="copyJSON()">📋 Copiar JSON Final</button>
+    <button class="main-btn" onclick="downloadJSON()" style="background: #238636;">💾 Descargar .json Estandarizado</button>
 
-<button class="main-btn" onclick="copyJSON()">📋 Copiar JSON Final</button>
-<button class="main-btn" onclick="downloadJSON()" style="background: #238636;">💾 Descargar .json Estandarizado</button>
+    <label>Salida JSON:</label>
+    <div id="jsonOutput"></div>
 
-<label>Salida JSON:</label>
-<div id="jsonOutput"></div>
+    <script>
+        // Función para limpiar acentos, espacios y caracteres especiales
+        function limpiarTexto(texto) {
+            return texto
+                .toLowerCase()
+                .normalize("NFD")
+                .replace(/[\u0300-\u036f]/g, "") // Quita acentos
+                .replace(/[^a-z0-9]/g, "-")      // Todo lo no alfanumérico a guion
+                .replace(/-+/g, "-")             // Evita guiones dobles
+                .trim();
+        }
 
-<script>
-// Función para limpiar acentos y caracteres raros
-function limpiarTexto(texto) {
-    return texto
-        .toLowerCase()
-        .normalize("NFD")
-        .replace(/[\u0300-\u036f]/g, "") // Quita acentos
-        .replace(/[^a-z0-9]/g, "-")      // Todo lo que no sea letra o número a guion
-        .replace(/-+/g, "-")             // Evita guiones dobles
-        .trim();
-}
+        // Carga dinámica de categorías
+        async function cargarCategorias() {
+            try {
+                const response = await fetch('categorias.json');
+                if (!response.ok) throw new Error("No se pudo cargar el archivo de categorías");
+                const categorias = await response.json();
+                const selector = document.getElementById('category');
+                selector.innerHTML = ''; 
+                
+                categorias.forEach(cat => {
+                    let option = document.createElement('option');
+                    option.value = cat;
+                    option.textContent = cat;
+                    selector.appendChild(option);
+                });
+                updateAll();
+            } catch (err) {
+                console.error("Error cargando categorias.json:", err);
+                document.getElementById('category').innerHTML = '<option value="error">Error de carga</option>';
+            }
+        }
 
-// Carga inicial de categorías
-async function cargarCategorias() {
-    try {
-        const response = await fetch('categorias.json');
-        const categorias = await response.json();
-        const selector = document.getElementById('category');
-        selector.innerHTML = ''; // Limpiar
-        
-        categorias.forEach(cat => {
-            let option = document.createElement('option');
-            option.value = cat;
-            option.textContent = cat;
-            selector.appendChild(option);
-        });
-        updateAll();
-    } catch (err) {
-        console.error("Error cargando categorias.json:", err);
-        document.getElementById('category').innerHTML = '<option value="error">Error al cargar</option>';
-    }
-}
+        function mdToHtml(md) {
+            return md
+                .replace(/^# (.*$)/gim, "<h1>$1</h1>")
+                .replace(/^## (.*$)/gim, "<h2>$1</h2>")
+                .replace(/\*\*(.*?)\*\*/gim, "<b>$1</b>")
+                .replace(/\*(.*?)\*/gim, "<i>$1</i>")
+                .replace(/\n/g, "<br>");
+        }
 
-function mdToHtml(md) {
-    return md
-        .replace(/^# (.*$)/gim, "<h1>$1</h1>")
-        .replace(/^## (.*$)/gim, "<h2>$1</h2>")
-        .replace(/\*\*(.*?)\*\*/gim, "<b>$1</b>")
-        .replace(/\*(.*?)\*/gim, "<i>$1</i>")
-        .replace(/\n/g, "<br>");
-}
+        function insertMd(before, after) {
+            const area = document.getElementById("content");
+            const start = area.selectionStart;
+            const end = area.selectionEnd;
+            const text = area.value;
+            area.value = text.substring(0, start) + before + text.substring(start, end) + after + text.substring(end);
+            area.focus();
+            updateAll();
+        }
 
-function insertMd(before, after) {
-    const area = document.getElementById("content");
-    const start = area.selectionStart;
-    const end = area.selectionEnd;
-    const text = area.value;
-    area.value = text.substring(0, start) + before + text.substring(start, end) + after + text.substring(end);
-    area.focus();
-    updateAll();
-}
+        function updateAll() {
+            const titleVal = document.getElementById("title").value;
+            const authorVal = document.getElementById("author").value;
+            const categoryVal = document.getElementById("category").value;
+            const contentVal = document.getElementById("content").value;
+            const tagsInput = document.getElementById("tags").value;
+            
+            // Limpieza de tags para el array del JSON
+            const tagsVal = tagsInput.split(",").map(t => limpiarTexto(t)).filter(t => t);
 
-function updateAll() {
-    const titleVal = document.getElementById("title").value;
-    const authorVal = document.getElementById("author").value;
-    const categoryVal = document.getElementById("category").value;
-    const contentVal = document.getElementById("content").value;
-    const tagsInput = document.getElementById("tags").value;
-    
-    // Limpieza de tags para el JSON
-    const tagsVal = tagsInput.split(",").map(t => limpiarTexto(t)).filter(t => t);
+            // Generamos la ruta raíz para el JSON
+            const authorClean = limpiarTexto(authorVal);
+            const avatarPath = `assets/img/${authorClean}.png`;
+            
+            // Usamos ../ para que la imagen se vea DENTRO del editor
+            document.getElementById("currentAvatar").src = "../" + avatarPath;
+            document.getElementById("render").innerHTML = mdToHtml(contentVal);
 
-    // Avatar con limpieza de acentos para la ruta
-    const avatarPath = `../assets/img/${limpiarTexto(authorVal)}.png`;
-    document.getElementById("currentAvatar").src = avatarPath;
-    document.getElementById("render").innerHTML = mdToHtml(contentVal);
+            const json = {
+                title: titleVal,
+                author: authorVal,
+                category: categoryVal,
+                date: new Date().toISOString().split("T")[0],
+                avatar: avatarPath, // Ruta guardada para index.html
+                tags: tagsVal,
+                content: contentVal 
+            };
 
-    const json = {
-        title: titleVal,
-        author: authorVal,
-        category: categoryVal,
-        date: new Date().toISOString().split("T")[0],
-        avatar: avatarPath,
-        tags: tagsVal,
-        content: contentVal 
-    };
+            document.getElementById("jsonOutput").textContent = JSON.stringify(json, null, 2);
+        }
 
-    document.getElementById("jsonOutput").textContent = JSON.stringify(json, null, 2);
-}
+        function copyJSON() {
+            const text = document.getElementById("jsonOutput").textContent;
+            navigator.clipboard.writeText(text).then(() => alert("JSON copiado ✔️"));
+        }
 
-function copyJSON() {
-    const text = document.getElementById("jsonOutput").textContent;
-    navigator.clipboard.writeText(text).then(() => alert("JSON copiado ✔️"));
-}
+        function downloadJSON() {
+            const author = limpiarTexto(document.getElementById("author").value);
+            const category = limpiarTexto(document.getElementById("category").value);
+            const tagsInput = document.getElementById("tags").value;
+            
+            // Keyword: primera palabra de las tags
+            const firstTag = tagsInput.split(",")[0].trim();
+            const keyword = firstTag ? limpiarTexto(firstTag) : "entrada";
+            
+            // Formato: 'autor'-'categoria'-'keyword'.json
+            const fileName = `${author}-${category}-${keyword}.json`;
+            
+            const text = document.getElementById("jsonOutput").textContent;
+            const blob = new Blob([text], { type: "application/json" });
+            const a = document.createElement("a");
+            a.href = URL.createObjectURL(blob);
+            a.download = fileName;
+            a.click();
+        }
 
-function downloadJSON() {
-    const author = limpiarTexto(document.getElementById("author").value);
-    const category = limpiarTexto(document.getElementById("category").value);
-    const tagsInput = document.getElementById("tags").value;
-    
-    // Obtenemos la primera tag como keyword limpia
-    const firstTag = tagsInput.split(",")[0].trim();
-    const keyword = firstTag ? limpiarTexto(firstTag) : "entrada";
-    
-    // Formato final: autor-categoria-keyword.json
-    const fileName = `${author}-${category}-${keyword}.json`;
-    
-    const text = document.getElementById("jsonOutput").textContent;
-    const blob = new Blob([text], { type: "application/json" });
-    const a = document.createElement("a");
-    a.href = URL.createObjectURL(blob);
-    a.download = fileName;
-    a.click();
-}
-
-// Iniciar cargando las categorías
-cargarCategorias();
-</script>
+        // Inicializar cargando categorías externas
+        cargarCategorias();
+    </script>
 </body>
 </html>
