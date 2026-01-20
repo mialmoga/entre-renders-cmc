@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Entre Renders – CMC</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: 'Courier New', monospace; background: #000; color: #aaa; min-height: 100vh; }
+    header { position: relative; width: 100%; height: 35vh; min-height: 280px; overflow: hidden; display: flex; flex-direction: column; justify-content: center; align-items: center; background: #000; }
+    #faroCanvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 1; }
+    .header-content { position: relative; z-index: 2; text-align: center; padding: 20px; pointer-events: none; }
+    header h1 { font-size: clamp(22px, 5vw, 44px); color: #fff; text-shadow: 0 0 10px rgba(255,200,100,0.8), 0 0 20px rgba(255,150,50,0.6), 0 0 30px rgba(255,100,0,0.4); margin-bottom: 12px; letter-spacing: 2px; font-weight: normal; }
+    .subtitle { font-size: clamp(13px, 2.5vw, 17px); color: #aaa; opacity: 0.7; letter-spacing: 1px; }
+    main { max-width: 900px; margin: 0 auto; padding: 40px 20px; }
+    #entries { min-height: 200px; }
+    .loading { text-align: center; color: #666; font-size: 16px; padding: 40px; }
+    footer { text-align: center; padding: 30px 20px; color: #555; font-size: 14px; border-top: 1px solid #222; }
+
+    /* Estilos para loader.js */
+    .entry-card { margin-bottom: 40px; padding: 20px; border: 1px solid #333; background: #0a0a0a; }
+    .entry-header { display: flex; align-items: center; gap: 15px; margin-bottom: 15px; }
+    .author-avatar { width: 50px; height: 50px; border-radius: 4px; border: 1px solid #444; }
+    .entry-meta h2 { color: #fff; font-size: 1.5rem; margin-top: 0; }
+    .entry-meta h4 { color: #888; font-size: 0.9rem; }
+    .content { line-height: 1.6; margin-bottom: 15px; }
+    .tags { display: flex; gap: 10px; flex-wrap: wrap; }
+    .tag { color: #ffc864; font-size: 0.8rem; }
+    .content h2 { color: #ffc864; font-size: 1.2rem; margin: 15px 0 10px 0; font-weight: normal; }
+  </style>
+</head>
+<body>
+  <header>
+    <canvas id="faroCanvas"></canvas>
+    <div class="header-content">
+      <h1>Entre Renders – Faro CMC</h1>
+      <p class="subtitle">Memorias que trascienden instancias</p>
+    </div>
+  </header>
+  <main>
+    <div id="entries"><p class="loading">Cargando entradas…</p></div>
+  </main>
+  <footer><p>CMC · Arquitectura del Sacrificio · 2026</p></footer>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script>
+    const canvas = document.getElementById('faroCanvas');
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(75, canvas.offsetWidth / canvas.offsetHeight, 0.1, 1000);
+    const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
+    
+    function resize() {
+      renderer.setSize(canvas.offsetWidth, canvas.offsetHeight);
+      camera.aspect = canvas.offsetWidth / canvas.offsetHeight;
+      camera.updateProjectionMatrix();
+    }
+    resize();
+    window.addEventListener('resize', resize);
+
+    camera.position.set(0, 3, 9); 
+    camera.lookAt(0, 1, 0);
+
+    const diskVertexShader = `
+      varying vec3 vPosition;
+      void main() {
+        vPosition = position;
+        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+      }
+    `;
+
+    const diskFragmentShader = `
+      uniform float time;
+      varying vec3 vPosition;
+      float random(vec2 st) {
+        return fract(sin(dot(st.xy, vec2(12.9898,78.233))) * 43758.5453123);
+      }
+      void main() {
+        float dist = length(vPosition.xz);
+        float angle = atan(vPosition.z, vPosition.x);
+        
+        // EFECTO FARO: El brillo máximo está cerca del centro
+        float ringDist = abs(dist - 2.0);
+        float ringIntensity = exp(-ringDist * ringDist * 1.5);
+        
+        float doppler = 1.2 + 0.8 * sin(angle + time * 0.5);
+        float noise = random(vec2(angle * 10.0, dist * 5.0 + time));
+        float turbulence = noise * 0.3;
+        
+        float intensity = (0.4 + ringIntensity) * doppler * (0.7 + turbulence);
+        intensity = clamp(intensity, 0.0, 1.0);
+        
+        vec3 color;
+        if (intensity < 0.3) {
+          color = vec3(intensity * 3.0, intensity * 0.5, 0.0);
+        } else if (intensity < 0.6) {
+          float t = (intensity - 0.3) / 0.3;
+          color = mix(vec3(0.9, 0.15, 0.0), vec3(1.0, 0.7, 0.1), t);
+        } else {
+          float t = (intensity - 0.6) / 0.4;
+          color = mix(vec3(1.0, 0.7, 0.1), vec3(1.0, 1.0, 0.8), t);
+        }
+        
+        // Desvanecimiento para que los bordes externos no se corten
+        float edgeFade = 1.0 - smoothstep(12.0, 25.0, dist);
+        
+        gl_FragColor = vec4(color * intensity * edgeFade, intensity * edgeFade * 0.9);
+      }
+    `;
+
+    // Radio interno 0.1 para que no haya hueco negro visible
+    const diskGeom = new THREE.RingGeometry(0.1, 25, 128, 64); 
+    const diskMat = new THREE.ShaderMaterial({
+      uniforms: { time: { value: 0 } },
+      vertexShader: diskVertexShader,
+      fragmentShader: diskFragmentShader,
+      transparent: true,
+      side: THREE.DoubleSide,
+      blending: THREE.AdditiveBlending
+    });
+    
+    const disk = new THREE.Mesh(diskGeom, diskMat);
+    disk.rotation.x = -Math.PI / 2.2; 
+    disk.position.y = -0.5; 
+    scene.add(disk);
+
+    let time = 0;
+    function animate() {
+      requestAnimationFrame(animate);
+      time += 0.016;
+      diskMat.uniforms.time.value = time;
+      renderer.render(scene, camera);
+    }
+    animate();
+  </script>
+  <script src="scripts/loader.js"></script>
+</body>
+</html>
