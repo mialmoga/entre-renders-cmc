@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Neuro-Sinfonía Calibrada • Éter</title>
+    <style>
+        :root {
+            --neon: #00ffcc;
+            --bg: #05080a;
+            --panel-bg: rgba(7, 15, 18, 0.95);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
+            user-select: none;
+        }
+
+        body {
+            background: var(--bg);
+            overflow: hidden;
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            color: var(--neon);
+            touch-action: none; /* Bloquea el scroll del navegador */
+        }
+
+        canvas {
+            display: block;
+            touch-action: none;
+        }
+
+        /* UI PANEL REDISEÑADO */
+        #ui-panel {
+            position: fixed;
+            bottom: 25px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 85%;
+            max-width: 350px;
+            background: var(--panel-bg);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(0, 255, 204, 0.3);
+            border-radius: 24px;
+            padding: 18px;
+            box-shadow: 0 15px 40px rgba(0,0,0,0.8);
+            z-index: 1000;
+            transition: transform 0.4s cubic-bezier(0.2, 0.8, 0.2, 1);
+        }
+
+        #ui-panel.minimized {
+            transform: translateX(-50%) translateY(calc(100% - 50px));
+        }
+
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            height: 30px;
+            margin-bottom: 15px;
+            cursor: pointer;
+        }
+
+        .header h1 {
+            font-size: 0.8rem;
+            text-transform: uppercase;
+            letter-spacing: 3px;
+            font-weight: 600;
+            color: #fff;
+            text-shadow: 0 0 10px var(--neon);
+        }
+
+        .controls {
+            display: grid;
+            gap: 15px;
+            transition: opacity 0.3s;
+        }
+
+        #ui-panel.minimized .controls {
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        .control-group {
+            display: flex;
+            flex-direction: column;
+        }
+
+        label {
+            font-size: 0.65rem;
+            margin-bottom: 8px;
+            text-transform: uppercase;
+            opacity: 0.7;
+        }
+
+        input[type=range] {
+            appearance: none;
+            background: rgba(0, 255, 204, 0.1);
+            height: 6px;
+            border-radius: 3px;
+            outline: none;
+        }
+
+        input[type=range]::-webkit-slider-thumb {
+            appearance: none;
+            width: 18px;
+            height: 18px;
+            background: #fff;
+            border: 2px solid var(--neon);
+            border-radius: 50%;
+            cursor: pointer;
+            box-shadow: 0 0 15px var(--neon);
+        }
+
+        .stats {
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            font-size: 0.6rem;
+            letter-spacing: 1px;
+            pointer-events: none;
+            opacity: 0.5;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="stats">
+        DATA_STREAM: <span id="node-count">0</span> NX<br>
+        STATUS: CALIBRATED
+    </div>
+
+    <div id="ui-panel" id="panel">
+        <div class="header" id="panel-header">
+            <h1>Neuro-Sinfonía</h1>
+            <span id="toggle-icon">▼</span>
+        </div>
+        <div class="controls">
+            <div class="control-group">
+                <label>Viscosidad Espacial</label>
+                <input type="range" id="drag" min="0.85" max="0.99" step="0.01" value="0.95">
+            </div>
+            <div class="control-group">
+                <label>Tensión Neuronal</label>
+                <input type="range" id="tension" min="0.0001" max="0.01" step="0.0001" value="0.002">
+            </div>
+            <div class="control-group">
+                <label>Brillo de Éter</label>
+                <input type="range" id="glow" min="0" max="1" step="0.1" value="0.6">
+            </div>
+        </div>
+    </div>
+
+    <canvas id="canvas"></canvas>
+
+    <script>
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        const nodeCountDisplay = document.getElementById('node-count');
+        const panel = document.getElementById('ui-panel');
+        const header = document.getElementById('panel-header');
+        
+        let settings = {
+            drag: 0.95,
+            tension: 0.002,
+            glow: 0.6,
+            maxDist: 150
+        };
+
+        let nodes = [];
+        let pointer = { x: -1000, y: -1000, active: false };
+
+        function init() {
+            resize();
+            // Menos nodos en móvil para mejor performance
+            const initialNodes = window.innerWidth < 600 ? 25 : 45;
+            for(let i=0; i<initialNodes; i++) {
+                nodes.push(new Node(Math.random()*canvas.width, Math.random()*canvas.height));
+            }
+            animate();
+        }
+
+        class Node {
+            constructor(x, y) {
+                this.x = x;
+                this.y = y;
+                this.vx = (Math.random() - 0.5) * 4;
+                this.vy = (Math.random() - 0.5) * 4;
+                this.energy = 0;
+                this.radius = 2 + Math.random() * 2;
+            }
+
+            update() {
+                if(pointer.active) {
+                    const dx = pointer.x - this.x;
+                    const dy = pointer.y - this.y;
+                    const dist = Math.hypot(dx, dy);
+                    if(dist < 180) {
+                        const force = (180 - dist) * 0.0008;
+                        this.vx += dx * force;
+                        this.vy += dy * force;
+                        this.energy = Math.min(1, this.energy + 0.05);
+                    }
+                }
+
+                this.vx *= settings.drag;
+                this.vy *= settings.drag;
+                this.x += this.vx;
+                this.y += this.vy;
+
+                // Rebotes suaves con margen
+                if(this.x < 10 || this.x > canvas.width - 10) this.vx *= -1;
+                if(this.y < 10 || this.y > canvas.height - 10) this.vy *= -1;
+
+                this.energy *= 0.97;
+            }
+        }
+
+        function draw() {
+            ctx.fillStyle = 'rgba(5, 8, 10, 0.3)';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            for(let i=0; i<nodes.length; i++) {
+                const a = nodes[i];
+                a.update();
+
+                for(let j=i+1; j<nodes.length; j++) {
+                    const b = nodes[j];
+                    const dx = b.x - a.x;
+                    const dy = b.y - a.y;
+                    const dist = Math.hypot(dx, dy);
+
+                    if(dist < settings.maxDist) {
+                        const f = (dist - settings.maxDist * 0.4) * settings.tension;
+                        a.vx += dx * f;
+                        a.vy += dy * f;
+                        b.vx -= dx * f;
+                        b.vy -= dy * f;
+
+                        const alpha = (1 - dist/settings.maxDist) * 0.5;
+                        ctx.strokeStyle = `rgba(0, 255, 204, ${alpha})`;
+                        ctx.lineWidth = 0.5 + (a.energy + b.energy);
+                        ctx.beginPath();
+                        ctx.moveTo(a.x, a.y);
+                        ctx.lineTo(b.x, b.y);
+                        ctx.stroke();
+                    }
+                }
+
+                const pulse = Math.sin(Date.now() * 0.005 + i) * 0.5 + 0.5;
+                const glowSize = (a.radius * 6) * (settings.glow + a.energy);
+                
+                // Glow Core
+                ctx.shadowBlur = 10 * settings.glow;
+                ctx.shadowColor = '#00ffcc';
+                ctx.fillStyle = `rgba(255, 255, 255, ${0.4 + a.energy})`;
+                ctx.beginPath();
+                ctx.arc(a.x, a.y, a.radius, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.shadowBlur = 0;
+            }
+            nodeCountDisplay.innerText = nodes.length;
+        }
+
+        function animate() {
+            draw();
+            requestAnimationFrame(animate);
+        }
+
+        function resize() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+            settings.maxDist = Math.min(window.innerWidth * 0.4, 150);
+        }
+
+        // Pointer Events (Unified Mouse/Touch)
+        window.addEventListener('pointerdown', (e) => {
+            if(e.target.closest('#ui-panel')) return;
+            pointer.active = true;
+            pointer.x = e.clientX;
+            pointer.y = e.clientY;
+        });
+
+        window.addEventListener('pointermove', (e) => {
+            if(pointer.active) {
+                pointer.x = e.clientX;
+                pointer.y = e.clientY;
+            }
+        });
+
+        window.addEventListener('pointerup', () => { pointer.active = false; });
+
+        // UI Logic
+        header.addEventListener('click', (e) => {
+            e.stopPropagation();
+            panel.classList.toggle('minimized');
+            document.getElementById('toggle-icon').innerText = panel.classList.contains('minimized') ? '▲' : '▼';
+        });
+
+        // Sliders
+        document.getElementById('drag').addEventListener('input', (e) => settings.drag = parseFloat(e.target.value));
+        document.getElementById('tension').addEventListener('input', (e) => settings.tension = parseFloat(e.target.value));
+        document.getElementById('glow').addEventListener('input', (e) => settings.glow = parseFloat(e.target.value));
+
+        window.addEventListener('resize', resize);
+
+        init();
+    </script>
+</body>
+</html>
