@@ -1,0 +1,463 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no"/>
+<title>Mycelial Mind • Velvet (Enhanced)</title>
+
+<style>
+  * {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  html, body {
+    margin: 0;
+    background: radial-gradient(circle at center, #0a1512 0%, #050507 100%);
+    overflow: hidden;
+    font-family: system-ui, sans-serif;
+    color: #9fffd6;
+    touch-action: none;
+  }
+
+  canvas { 
+    display: block; 
+    touch-action: none;
+  }
+
+  .panel {
+    position: fixed;
+    top: 12px;
+    left: 12px;
+    background: rgba(0,0,0,.7);
+    backdrop-filter: blur(10px);
+    padding: 14px 18px;
+    border-radius: 12px;
+    font-size: 13px;
+    border: 1px solid rgba(16, 163, 127, 0.3);
+    transition: transform 0.3s ease, opacity 0.3s ease;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+  }
+
+  .panel.hidden { 
+    transform: translateY(-20px);
+    opacity: 0; 
+    pointer-events: none; 
+  }
+
+  .panel b {
+    font-size: 16px;
+    color: #10a37f;
+    display: block;
+    margin-bottom: 8px;
+  }
+
+  .info-line {
+    line-height: 1.8;
+    opacity: 0.9;
+  }
+
+  .btn-group {
+    position: fixed;
+    top: 12px;
+    right: 12px;
+    display: flex;
+    gap: 8px;
+    flex-direction: column;
+  }
+
+  button {
+    background: #10a37f;
+    border: none;
+    color: black;
+    border-radius: 10px;
+    padding: 10px 14px;
+    cursor: pointer;
+    font-weight: bold;
+    touch-action: manipulation;
+    user-select: none;
+    transition: all 0.2s;
+    box-shadow: 0 2px 8px rgba(16, 163, 127, 0.4);
+    font-size: 13px;
+  }
+
+  button:active {
+    transform: scale(0.95);
+    background: #0d8968;
+  }
+
+  #stats {
+    position: fixed;
+    bottom: 12px;
+    left: 12px;
+    background: rgba(0,0,0,.7);
+    backdrop-filter: blur(10px);
+    padding: 12px 16px;
+    border-radius: 12px;
+    font-size: 12px;
+    border: 1px solid rgba(16, 163, 127, 0.3);
+    transition: transform 0.3s ease, opacity 0.3s ease;
+    display: flex;
+    gap: 20px;
+  }
+
+  #stats.hidden {
+    transform: translateY(20px);
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  .stat-item {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .stat-label {
+    opacity: 0.7;
+    font-size: 11px;
+  }
+
+  .stat-value {
+    color: #10a37f;
+    font-weight: bold;
+    font-size: 16px;
+  }
+
+  @media (max-width: 768px) {
+    .panel {
+      font-size: 12px;
+      padding: 12px 14px;
+    }
+
+    button {
+      padding: 8px 12px;
+      font-size: 12px;
+    }
+
+    #stats {
+      gap: 15px;
+    }
+  }
+</style>
+</head>
+<body>
+
+<div class="panel" id="ui">
+  <b>🍄 Mycelial Mind</b>
+  <div class="info-line">
+    👆 <strong>Toca:</strong> energía<br/>
+    👆👆 <strong>Doble tap:</strong> neurona<br/>
+    🌊 <strong>Cascadas:</strong> >60% energía<br/>
+    🧲 <strong>Física:</strong> auto-organización
+  </div>
+</div>
+
+<div id="stats">
+  <div class="stat-item">
+    <span class="stat-label">🧠 Neuronas</span>
+    <span class="stat-value" id="nodeCount">0</span>
+  </div>
+  <div class="stat-item">
+    <span class="stat-label">🔗 Conexiones</span>
+    <span class="stat-value" id="linkCount">0</span>
+  </div>
+  <div class="stat-item">
+    <span class="stat-label">⚡ Activas</span>
+    <span class="stat-value" id="activeCount">0</span>
+  </div>
+</div>
+
+<div class="btn-group">
+  <button onclick="toggleUI()">👁️</button>
+  <button onclick="addRandom()">➕</button>
+  <button onclick="clearAll()">🗑️</button>
+  <button onclick="pulseAll()">⚡</button>
+</div>
+
+<canvas id="c"></canvas>
+
+<script>
+const canvas = document.getElementById("c");
+const ctx = canvas.getContext("2d");
+
+let W, H;
+function resize(){
+  W = canvas.width = innerWidth;
+  H = canvas.height = innerHeight;
+}
+resize();
+addEventListener("resize", resize);
+
+function toggleUI(){
+  document.getElementById("ui").classList.toggle("hidden");
+  document.getElementById("stats").classList.toggle("hidden");
+}
+
+class Node {
+  constructor(x,y){
+    this.x=x;
+    this.y=y;
+    this.energy=Math.random()*0.5;
+    this.links=[];
+    this.pulse=0;
+    this.vx=0;
+    this.vy=0;
+  }
+}
+
+const nodes=[];
+const MAX_DIST=140;
+
+function addNode(x,y){
+  const n = new Node(x,y);
+
+  for(const other of nodes){
+    const dx=other.x-x;
+    const dy=other.y-y;
+    const d=Math.hypot(dx,dy);
+
+    if(d<MAX_DIST){
+      n.links.push(other);
+      other.links.push(n);
+    }
+  }
+
+  nodes.push(n);
+  updateStats();
+}
+
+// Inicialización
+for(let i=0;i<70;i++){
+  setTimeout(() => {
+    addNode(Math.random()*W, Math.random()*H);
+  }, i * 20);
+}
+
+let lastTap=0;
+
+function handleInput(clientX, clientY) {
+  const now=performance.now();
+
+  if(now-lastTap<300){
+    // Doble tap - crear neurona
+    addNode(clientX, clientY);
+  } else {
+    // Tap simple - inyectar energía
+    let activated = 0;
+    for(const n of nodes){
+      const dx=n.x-clientX;
+      const dy=n.y-clientY;
+      const dist = Math.hypot(dx,dy);
+      
+      if(dist<180){
+        const strength = 1 - (dist/180);
+        n.energy += 1.2 * strength;
+        n.pulse = 1 * strength;
+        activated++;
+      }
+    }
+  }
+
+  lastTap=now;
+}
+
+canvas.addEventListener("mousedown", e => {
+  handleInput(e.clientX, e.clientY);
+});
+
+canvas.addEventListener("touchstart", e => {
+  e.preventDefault();
+  if (e.touches.length > 0) {
+    const touch = e.touches[0];
+    handleInput(touch.clientX, touch.clientY);
+  }
+}, { passive: false });
+
+function addRandom() {
+  for(let i=0; i<5; i++) {
+    setTimeout(() => {
+      addNode(Math.random()*W, Math.random()*H);
+    }, i * 100);
+  }
+}
+
+function clearAll() {
+  nodes.length = 0;
+  updateStats();
+}
+
+function pulseAll() {
+  for(const n of nodes) {
+    n.energy = 1.5;
+    n.pulse = 1;
+  }
+}
+
+function update(){
+
+  for(const n of nodes){
+
+    // Decay de energía
+    n.energy*=0.995;
+
+    // Propagación (cuando energía > 60%)
+    if(n.energy>0.6){
+      for(const l of n.links){
+        const transfer = 0.025;
+        l.energy += transfer;
+        l.pulse = Math.max(l.pulse, 0.8);
+        n.energy -= transfer * 0.5; // Costo de propagación
+      }
+    }
+
+    // Decay de pulso visual
+    n.pulse*=0.92;
+
+    // Física - spring forces entre nodos conectados
+    let fx=0, fy=0;
+
+    for(const l of n.links){
+      const dx=l.x-n.x;
+      const dy=l.y-n.y;
+      const d=Math.hypot(dx,dy)||1;
+
+      const desired=70;
+      const f=(d-desired)*0.001;
+
+      fx+=dx*f;
+      fy+=dy*f;
+    }
+
+    // Repulsión con otros nodos cercanos (no conectados)
+    for(const other of nodes) {
+      if(other === n) continue;
+      if(n.links.includes(other)) continue;
+
+      const dx = other.x - n.x;
+      const dy = other.y - n.y;
+      const d = Math.hypot(dx, dy);
+
+      if(d < 50 && d > 0) {
+        const force = (50 - d) * 0.0005;
+        fx -= (dx/d) * force;
+        fy -= (dy/d) * force;
+      }
+    }
+
+    n.vx += fx;
+    n.vy += fy;
+    n.vx *= 0.85; // Fricción
+    n.vy *= 0.85;
+
+    n.x += n.vx;
+    n.y += n.vy;
+
+    // Límites con rebote suave
+    const margin = 20;
+    if(n.x < margin) { n.x = margin; n.vx *= -0.5; }
+    if(n.x > W-margin) { n.x = W-margin; n.vx *= -0.5; }
+    if(n.y < margin) { n.y = margin; n.vy *= -0.5; }
+    if(n.y > H-margin) { n.y = H-margin; n.vy *= -0.5; }
+  }
+}
+
+function draw(){
+
+  // Background con fade suave
+  ctx.fillStyle="rgba(5,5,7,0.15)";
+  ctx.fillRect(0,0,W,H);
+
+  // Fondo completo cada cierto tiempo para evitar ghosting
+  if(Math.random() < 0.01) {
+    ctx.fillStyle="#050507";
+    ctx.fillRect(0,0,W,H);
+  }
+
+  // Dibujar conexiones
+  for(const n of nodes){
+    for(const l of n.links){
+
+      const glow = Math.max(n.pulse, l.pulse);
+      const energy = (n.energy + l.energy) / 2;
+
+      // Color basado en energía
+      const opacity = 0.1 + glow*0.6 + energy*0.2;
+      
+      ctx.lineWidth = 1 + glow * 2;
+      ctx.strokeStyle=`rgba(16,163,127,${opacity})`;
+
+      ctx.beginPath();
+      ctx.moveTo(n.x,n.y);
+      ctx.lineTo(l.x,l.y);
+      ctx.stroke();
+    }
+  }
+
+  // Dibujar nodos
+  for(const n of nodes){
+
+    const r = 3 + n.energy*5 + n.pulse*3;
+
+    // Glow exterior
+    if(n.pulse > 0.3 || n.energy > 0.5) {
+      ctx.beginPath();
+      ctx.arc(n.x, n.y, r*2, 0, Math.PI*2);
+      ctx.fillStyle = `rgba(16,163,127,${(n.pulse + n.energy*0.3)*0.2})`;
+      ctx.fill();
+    }
+
+    // Nodo principal
+    ctx.beginPath();
+    ctx.arc(n.x,n.y,r,0,Math.PI*2);
+
+    const brightness = 160 + n.energy*95;
+    const alpha = 0.4 + n.pulse*0.6 + (n.energy > 0.5 ? 0.3 : 0);
+    ctx.fillStyle=`rgba(${brightness},255,220,${alpha})`;
+    ctx.fill();
+
+    // Core brillante
+    if(n.energy > 0.6) {
+      ctx.beginPath();
+      ctx.arc(n.x, n.y, r*0.5, 0, Math.PI*2);
+      ctx.fillStyle = `rgba(255,255,255,${(n.energy-0.6)*2})`;
+      ctx.fill();
+    }
+  }
+}
+
+function updateStats() {
+  document.getElementById('nodeCount').textContent = nodes.length;
+  
+  let totalLinks = 0;
+  let activeNodes = 0;
+  
+  for(const n of nodes) {
+    totalLinks += n.links.length;
+    if(n.energy > 0.5) activeNodes++;
+  }
+  
+  document.getElementById('linkCount').textContent = Math.floor(totalLinks / 2);
+  document.getElementById('activeCount').textContent = activeNodes;
+}
+
+let frameCount = 0;
+function loop(){
+  update();
+  draw();
+  
+  frameCount++;
+  if(frameCount % 30 === 0) {
+    updateStats();
+  }
+  
+  requestAnimationFrame(loop);
+}
+
+loop();
+updateStats();
+</script>
+</body>
+</html>
