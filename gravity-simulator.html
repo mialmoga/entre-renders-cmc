@@ -1,0 +1,671 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Simulador Gravitacional</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
+        }
+        
+        body {
+            margin: 0;
+            overflow: hidden;
+            background: #000000;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            touch-action: none;
+        }
+        
+        canvas {
+            display: block;
+            touch-action: none;
+        }
+
+        .panel {
+            position: absolute;
+            background: rgba(10, 10, 30, 0.9);
+            padding: 20px;
+            border-radius: 15px;
+            backdrop-filter: blur(15px);
+            border: 2px solid rgba(138, 43, 226, 0.5);
+            box-shadow: 0 0 30px rgba(138, 43, 226, 0.3);
+            transition: transform 0.3s ease, opacity 0.3s ease;
+            color: #ffffff;
+        }
+
+        .panel.hidden {
+            transform: translateY(-20px);
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        #infoPanel {
+            top: 20px;
+            left: 20px;
+            max-width: 320px;
+            font-size: 14px;
+        }
+
+        #controlPanel {
+            bottom: 20px;
+            right: 20px;
+            min-width: 250px;
+        }
+
+        .panel h2 {
+            margin: 0 0 15px 0;
+            font-size: 24px;
+            color: #da70d6;
+            text-shadow: 0 0 10px rgba(218, 112, 214, 0.8);
+        }
+
+        .panel p {
+            margin: 8px 0;
+            line-height: 1.6;
+        }
+
+        .toggle-btn {
+            position: absolute;
+            background: linear-gradient(135deg, rgba(138, 43, 226, 0.8), rgba(75, 0, 130, 0.8));
+            border: 2px solid #da70d6;
+            color: #ffffff;
+            padding: 12px 18px;
+            border-radius: 50px;
+            cursor: pointer;
+            font-weight: bold;
+            font-size: 18px;
+            box-shadow: 0 4px 15px rgba(138, 43, 226, 0.4);
+            transition: all 0.3s ease;
+            z-index: 1000;
+            user-select: none;
+            -webkit-user-select: none;
+            touch-action: manipulation;
+        }
+
+        .toggle-btn:hover {
+            transform: scale(1.05);
+            box-shadow: 0 6px 20px rgba(138, 43, 226, 0.6);
+        }
+
+        .toggle-btn:active {
+            transform: scale(0.95);
+        }
+
+        #toggleInfo {
+            top: 20px;
+            right: 20px;
+        }
+
+        #toggleControls {
+            bottom: 20px;
+            left: 20px;
+        }
+
+        button {
+            background: linear-gradient(135deg, rgba(138, 43, 226, 0.6), rgba(75, 0, 130, 0.6));
+            border: 2px solid #da70d6;
+            color: #ffffff;
+            padding: 12px 20px;
+            border-radius: 10px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: all 0.3s ease;
+            margin: 5px 0;
+            width: 100%;
+            font-size: 14px;
+            touch-action: manipulation;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        button:hover {
+            background: linear-gradient(135deg, rgba(138, 43, 226, 0.8), rgba(75, 0, 130, 0.8));
+            transform: translateY(-2px);
+            box-shadow: 0 5px 20px rgba(138, 43, 226, 0.5);
+        }
+
+        button:active {
+            transform: translateY(0);
+        }
+
+        .stat {
+            margin: 10px 0;
+            display: flex;
+            justify-content: space-between;
+            font-size: 14px;
+            padding: 8px;
+            background: rgba(138, 43, 226, 0.2);
+            border-radius: 8px;
+        }
+
+        .stat-value {
+            color: #da70d6;
+            font-weight: bold;
+        }
+
+        .control-group {
+            margin: 15px 0;
+        }
+
+        .control-group label {
+            display: block;
+            margin-bottom: 8px;
+            color: #da70d6;
+            font-weight: bold;
+        }
+
+        .slider {
+            width: 100%;
+            height: 6px;
+            border-radius: 5px;
+            background: rgba(138, 43, 226, 0.3);
+            outline: none;
+            -webkit-appearance: none;
+        }
+
+        .slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: #da70d6;
+            cursor: pointer;
+            box-shadow: 0 0 10px rgba(218, 112, 214, 0.8);
+        }
+
+        .slider::-moz-range-thumb {
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: #da70d6;
+            cursor: pointer;
+            box-shadow: 0 0 10px rgba(218, 112, 214, 0.8);
+        }
+
+        @media (max-width: 768px) {
+            .panel {
+                max-width: 280px;
+                font-size: 13px;
+            }
+            
+            .panel h2 {
+                font-size: 20px;
+            }
+            
+            button {
+                padding: 10px 15px;
+                font-size: 13px;
+            }
+            
+            .toggle-btn {
+                padding: 10px 15px;
+                font-size: 16px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <button class="toggle-btn" id="toggleInfo">👁️ Info</button>
+    <button class="toggle-btn" id="toggleControls">🎮 Controles</button>
+
+    <div id="infoPanel" class="panel">
+        <h2>🌌 Simulador Gravitacional</h2>
+        <p><strong>👆 Toca/Click:</strong> Crear planeta</p>
+        <p><strong>👆 Mantén presionado:</strong> Lanzar con velocidad</p>
+        <p><strong>🔴 Planeta rojo:</strong> Atrae (gravedad)</p>
+        <p><strong>🔵 Planeta azul:</strong> Repele (anti-gravedad)</p>
+        <p><strong>🟡 Planeta amarillo:</strong> Neutro</p>
+        <div class="stat">
+            <span>🪐 Planetas:</span>
+            <span class="stat-value" id="planetCount">0</span>
+        </div>
+        <div class="stat">
+            <span>⚡ Energía Total:</span>
+            <span class="stat-value" id="totalEnergy">0</span>
+        </div>
+    </div>
+
+    <div id="controlPanel" class="panel">
+        <div class="control-group">
+            <label>🌍 Tipo de Planeta:</label>
+            <button id="gravityBtn">🔴 Gravedad (Actual)</button>
+        </div>
+        <div class="control-group">
+            <label>⚡ Fuerza Gravitacional: <span id="gravityValue">1.0</span></label>
+            <input type="range" min="0.1" max="3" step="0.1" value="1" class="slider" id="gravitySlider">
+        </div>
+        <div class="control-group">
+            <label>🎨 Efectos:</label>
+            <button id="trailBtn">✨ Estelas: ON</button>
+            <button id="gridBtn">📐 Grid: ON</button>
+        </div>
+        <div class="control-group">
+            <button id="clearBtn">🗑️ Limpiar Todo</button>
+            <button id="presetBtn">🎲 Configuración Aleatoria</button>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script>
+        // Setup Three.js
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x000000);
+        
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        camera.position.z = 30;
+        
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        document.body.appendChild(renderer.domElement);
+
+        // Iluminación
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
+        scene.add(ambientLight);
+
+        const pointLight = new THREE.PointLight(0xda70d6, 1, 100);
+        pointLight.position.set(0, 0, 20);
+        scene.add(pointLight);
+
+        // Grid
+        let gridHelper = new THREE.GridHelper(60, 60, 0x8a2be2, 0x4b0082);
+        gridHelper.rotation.x = Math.PI / 2;
+        scene.add(gridHelper);
+        let showGrid = true;
+
+        // Estrellas de fondo
+        const starGeometry = new THREE.BufferGeometry();
+        const starCount = 2000;
+        const starPositions = new Float32Array(starCount * 3);
+        
+        for(let i = 0; i < starCount * 3; i++) {
+            starPositions[i] = (Math.random() - 0.5) * 200;
+        }
+        
+        starGeometry.setAttribute('position', new THREE.BufferAttribute(starPositions, 3));
+        const starMaterial = new THREE.PointsMaterial({ 
+            color: 0xffffff, 
+            size: 0.3,
+            transparent: true,
+            opacity: 0.8
+        });
+        const stars = new THREE.Points(starGeometry, starMaterial);
+        scene.add(stars);
+
+        // Configuración
+        let planetType = 'gravity'; // 'gravity', 'antigravity', 'neutral'
+        let gravityStrength = 1.0;
+        let showTrails = true;
+
+        // Clase Planeta
+        class Planet {
+            constructor(x, y, type, initialVelocity = null) {
+                this.position = new THREE.Vector3(x, y, 0);
+                this.velocity = initialVelocity || new THREE.Vector3(0, 0, 0);
+                this.acceleration = new THREE.Vector3(0, 0, 0);
+                this.mass = 1 + Math.random() * 2;
+                this.type = type;
+                
+                // Color según tipo
+                const colors = {
+                    'gravity': 0xff4444,
+                    'antigravity': 0x4444ff,
+                    'neutral': 0xffff44
+                };
+                this.color = colors[type];
+
+                // Visual
+                const geometry = new THREE.SphereGeometry(this.mass * 0.3, 32, 32);
+                const material = new THREE.MeshPhongMaterial({
+                    color: this.color,
+                    emissive: this.color,
+                    emissiveIntensity: 0.5,
+                    shininess: 100
+                });
+                this.mesh = new THREE.Mesh(geometry, material);
+                this.mesh.position.copy(this.position);
+                scene.add(this.mesh);
+
+                // Glow
+                const glowGeometry = new THREE.SphereGeometry(this.mass * 0.4, 16, 16);
+                const glowMaterial = new THREE.MeshBasicMaterial({
+                    color: this.color,
+                    transparent: true,
+                    opacity: 0.3
+                });
+                this.glow = new THREE.Mesh(glowGeometry, glowMaterial);
+                this.mesh.add(this.glow);
+
+                // Trail
+                this.trail = [];
+                this.maxTrailLength = 50;
+                
+                if (showTrails) {
+                    this.trailGeometry = new THREE.BufferGeometry();
+                    this.trailMaterial = new THREE.LineBasicMaterial({
+                        color: this.color,
+                        transparent: true,
+                        opacity: 0.6,
+                        linewidth: 2
+                    });
+                    this.trailLine = new THREE.Line(this.trailGeometry, this.trailMaterial);
+                    scene.add(this.trailLine);
+                }
+            }
+
+            applyForce(force) {
+                this.acceleration.add(force.divideScalar(this.mass));
+            }
+
+            attractOrRepel(other) {
+                const force = new THREE.Vector3().subVectors(this.position, other.position);
+                const distance = Math.max(force.length(), 1);
+                force.normalize();
+
+                let strength = (gravityStrength * this.mass * other.mass) / (distance * distance);
+
+                if (this.type === 'antigravity' || other.type === 'antigravity') {
+                    strength *= -1; // Repulsión
+                }
+
+                if (this.type === 'neutral' || other.type === 'neutral') {
+                    strength *= 0.3; // Neutral tiene poca influencia
+                }
+
+                force.multiplyScalar(strength);
+                return force;
+            }
+
+            update() {
+                this.velocity.add(this.acceleration);
+                this.velocity.multiplyScalar(0.99); // Fricción mínima
+                this.position.add(this.velocity);
+                this.acceleration.set(0, 0, 0);
+
+                // Límites con rebote
+                const limit = 25;
+                if (Math.abs(this.position.x) > limit) {
+                    this.position.x = Math.sign(this.position.x) * limit;
+                    this.velocity.x *= -0.8;
+                }
+                if (Math.abs(this.position.y) > limit) {
+                    this.position.y = Math.sign(this.position.y) * limit;
+                    this.velocity.y *= -0.8;
+                }
+
+                this.mesh.position.copy(this.position);
+                this.mesh.rotation.x += 0.01;
+                this.mesh.rotation.y += 0.01;
+
+                // Actualizar trail
+                if (showTrails && this.trailLine) {
+                    this.trail.push(this.position.clone());
+                    if (this.trail.length > this.maxTrailLength) {
+                        this.trail.shift();
+                    }
+
+                    const positions = new Float32Array(this.trail.length * 3);
+                    this.trail.forEach((pos, i) => {
+                        positions[i * 3] = pos.x;
+                        positions[i * 3 + 1] = pos.y;
+                        positions[i * 3 + 2] = pos.z;
+                    });
+
+                    this.trailGeometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+                }
+            }
+
+            getEnergy() {
+                return 0.5 * this.mass * this.velocity.lengthSq();
+            }
+
+            remove() {
+                scene.remove(this.mesh);
+                if (this.trailLine) scene.remove(this.trailLine);
+            }
+        }
+
+        // Array de planetas
+        const planets = [];
+
+        // Variables para touch/mouse
+        let touchStart = null;
+        let touchCurrent = null;
+        let isDragging = false;
+
+        // Función para convertir coordenadas de pantalla a mundo
+        function screenToWorld(clientX, clientY) {
+            const mouse = new THREE.Vector2(
+                (clientX / window.innerWidth) * 2 - 1,
+                -(clientY / window.innerHeight) * 2 + 1
+            );
+
+            const raycaster = new THREE.Raycaster();
+            raycaster.setFromCamera(mouse, camera);
+
+            const distance = -camera.position.z / raycaster.ray.direction.z;
+            const worldPos = camera.position.clone().add(
+                raycaster.ray.direction.multiplyScalar(distance)
+            );
+
+            return worldPos;
+        }
+
+        // Event handlers unificados para touch y mouse
+        function handleStart(clientX, clientY) {
+            touchStart = screenToWorld(clientX, clientY);
+            touchCurrent = touchStart.clone();
+            isDragging = true;
+        }
+
+        function handleMove(clientX, clientY) {
+            if (isDragging) {
+                touchCurrent = screenToWorld(clientX, clientY);
+            }
+        }
+
+        function handleEnd() {
+            if (isDragging && touchStart) {
+                const velocity = new THREE.Vector3().subVectors(touchCurrent, touchStart);
+                velocity.multiplyScalar(0.1);
+                
+                const planet = new Planet(touchStart.x, touchStart.y, planetType, velocity);
+                planets.push(planet);
+                updateStats();
+            }
+            
+            touchStart = null;
+            touchCurrent = null;
+            isDragging = false;
+        }
+
+        // Mouse events
+        renderer.domElement.addEventListener('mousedown', (e) => {
+            handleStart(e.clientX, e.clientY);
+        });
+
+        renderer.domElement.addEventListener('mousemove', (e) => {
+            handleMove(e.clientX, e.clientY);
+        });
+
+        renderer.domElement.addEventListener('mouseup', () => {
+            handleEnd();
+        });
+
+        // Touch events
+        renderer.domElement.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            const touch = e.touches[0];
+            handleStart(touch.clientX, touch.clientY);
+        }, { passive: false });
+
+        renderer.domElement.addEventListener('touchmove', (e) => {
+            e.preventDefault();
+            if (e.touches.length > 0) {
+                const touch = e.touches[0];
+                handleMove(touch.clientX, touch.clientY);
+            }
+        }, { passive: false });
+
+        renderer.domElement.addEventListener('touchend', (e) => {
+            e.preventDefault();
+            handleEnd();
+        }, { passive: false });
+
+        // Controles del panel
+        const typeNames = {
+            'gravity': '🔴 Gravedad',
+            'antigravity': '🔵 Anti-Gravedad',
+            'neutral': '🟡 Neutral'
+        };
+
+        document.getElementById('gravityBtn').addEventListener('click', function() {
+            const types = ['gravity', 'antigravity', 'neutral'];
+            const currentIndex = types.indexOf(planetType);
+            planetType = types[(currentIndex + 1) % types.length];
+            this.textContent = typeNames[planetType] + ' (Actual)';
+        });
+
+        document.getElementById('gravitySlider').addEventListener('input', function() {
+            gravityStrength = parseFloat(this.value);
+            document.getElementById('gravityValue').textContent = gravityStrength.toFixed(1);
+        });
+
+        document.getElementById('trailBtn').addEventListener('click', function() {
+            showTrails = !showTrails;
+            this.textContent = showTrails ? '✨ Estelas: ON' : '✨ Estelas: OFF';
+            
+            planets.forEach(planet => {
+                if (showTrails && !planet.trailLine) {
+                    planet.trailGeometry = new THREE.BufferGeometry();
+                    planet.trailMaterial = new THREE.LineBasicMaterial({
+                        color: planet.color,
+                        transparent: true,
+                        opacity: 0.6
+                    });
+                    planet.trailLine = new THREE.Line(planet.trailGeometry, planet.trailMaterial);
+                    scene.add(planet.trailLine);
+                } else if (!showTrails && planet.trailLine) {
+                    scene.remove(planet.trailLine);
+                    planet.trailLine = null;
+                }
+            });
+        });
+
+        document.getElementById('gridBtn').addEventListener('click', function() {
+            showGrid = !showGrid;
+            gridHelper.visible = showGrid;
+            this.textContent = showGrid ? '📐 Grid: ON' : '📐 Grid: OFF';
+        });
+
+        document.getElementById('clearBtn').addEventListener('click', () => {
+            planets.forEach(p => p.remove());
+            planets.length = 0;
+            updateStats();
+        });
+
+        document.getElementById('presetBtn').addEventListener('click', () => {
+            planets.forEach(p => p.remove());
+            planets.length = 0;
+
+            const types = ['gravity', 'antigravity', 'neutral'];
+            for (let i = 0; i < 8; i++) {
+                const angle = (i / 8) * Math.PI * 2;
+                const radius = 10;
+                const x = Math.cos(angle) * radius;
+                const y = Math.sin(angle) * radius;
+                const velocity = new THREE.Vector3(-Math.sin(angle), Math.cos(angle), 0).multiplyScalar(0.5);
+                const type = types[Math.floor(Math.random() * types.length)];
+                
+                planets.push(new Planet(x, y, type, velocity));
+            }
+            updateStats();
+        });
+
+        // Toggle panels
+        document.getElementById('toggleInfo').addEventListener('click', () => {
+            document.getElementById('infoPanel').classList.toggle('hidden');
+        });
+
+        document.getElementById('toggleControls').addEventListener('click', () => {
+            document.getElementById('controlPanel').classList.toggle('hidden');
+        });
+
+        function updateStats() {
+            document.getElementById('planetCount').textContent = planets.length;
+            const totalEnergy = planets.reduce((sum, p) => sum + p.getEnergy(), 0);
+            document.getElementById('totalEnergy').textContent = totalEnergy.toFixed(1);
+        }
+
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        // Crear configuración inicial
+        setTimeout(() => {
+            document.getElementById('presetBtn').click();
+        }, 500);
+
+        // Línea de predicción mientras arrastras
+        let predictionLine = null;
+        const predictionGeometry = new THREE.BufferGeometry();
+        const predictionMaterial = new THREE.LineBasicMaterial({
+            color: 0xffffff,
+            transparent: true,
+            opacity: 0.5,
+            linewidth: 2
+        });
+
+        // Loop de animación
+        function animate() {
+            requestAnimationFrame(animate);
+
+            // Aplicar fuerzas gravitacionales
+            for (let i = 0; i < planets.length; i++) {
+                for (let j = i + 1; j < planets.length; j++) {
+                    const force = planets[i].attractOrRepel(planets[j]);
+                    planets[j].applyForce(force.clone());
+                    planets[i].applyForce(force.negate());
+                }
+            }
+
+            // Actualizar planetas
+            planets.forEach(planet => planet.update());
+
+            // Línea de predicción mientras arrastras
+            if (isDragging && touchStart && touchCurrent) {
+                const positions = new Float32Array(6);
+                positions[0] = touchStart.x;
+                positions[1] = touchStart.y;
+                positions[2] = touchStart.z;
+                positions[3] = touchCurrent.x;
+                positions[4] = touchCurrent.y;
+                positions[5] = touchCurrent.z;
+
+                predictionGeometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+
+                if (!predictionLine) {
+                    predictionLine = new THREE.Line(predictionGeometry, predictionMaterial);
+                    scene.add(predictionLine);
+                }
+            } else if (predictionLine) {
+                scene.remove(predictionLine);
+                predictionLine = null;
+            }
+
+            // Rotar estrellas de fondo
+            stars.rotation.y += 0.0002;
+
+            renderer.render(scene, camera);
+        }
+
+        animate();
+        updateStats();
+    </script>
+</body>
+</html>
