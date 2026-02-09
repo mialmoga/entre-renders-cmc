@@ -1,0 +1,451 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+<title>Terrario AMI · Velvet (Enhanced)</title>
+
+<style>
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
+}
+
+html, body {
+  margin:0;
+  overflow:hidden;
+  background: radial-gradient(circle at center, #0a1628 0%, #050505 100%);
+  font-family: system-ui, sans-serif;
+  touch-action:none;
+}
+
+canvas { 
+  display:block; 
+  touch-action: none;
+}
+
+.panel {
+  position:fixed;
+  top:12px;
+  left:12px;
+  background:rgba(0,0,0,.75);
+  backdrop-filter: blur(10px);
+  color:#10a37f;
+  padding:14px 18px;
+  border-radius:12px;
+  font-size:14px;
+  border: 1px solid rgba(16, 163, 127, 0.3);
+  transition: transform 0.3s ease, opacity 0.3s ease;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+}
+
+.panel.hidden { 
+  transform: translateY(-20px);
+  opacity:0; 
+  pointer-events:none;
+}
+
+.stat-line {
+  display: flex;
+  justify-content: space-between;
+  margin: 6px 0;
+  gap: 20px;
+}
+
+.stat-value {
+  color: #fff;
+  font-weight: bold;
+  font-size: 16px;
+}
+
+.btn-group {
+  position: fixed;
+  top: 12px;
+  right: 12px;
+  display: flex;
+  gap: 8px;
+  flex-direction: column;
+}
+
+.btn {
+  background:#10a37f;
+  color:black;
+  border:none;
+  border-radius:10px;
+  padding:10px 14px;
+  font-weight:bold;
+  cursor: pointer;
+  touch-action: manipulation;
+  user-select: none;
+  transition: all 0.2s;
+  box-shadow: 0 2px 8px rgba(16, 163, 127, 0.4);
+  font-size: 14px;
+}
+
+.btn:active {
+  transform: scale(0.95);
+  background: #0d8968;
+}
+
+#info-panel {
+  position: fixed;
+  bottom: 12px;
+  left: 12px;
+  background: rgba(0,0,0,.75);
+  backdrop-filter: blur(10px);
+  color: #10a37f;
+  padding: 12px 16px;
+  border-radius: 12px;
+  font-size: 12px;
+  border: 1px solid rgba(16, 163, 127, 0.3);
+  max-width: 300px;
+  transition: transform 0.3s ease, opacity 0.3s ease;
+  line-height: 1.6;
+}
+
+#info-panel.hidden {
+  transform: translateY(20px);
+  opacity: 0;
+  pointer-events: none;
+}
+
+.title {
+  font-size: 16px;
+  font-weight: bold;
+  margin-bottom: 8px;
+  color: #fff;
+}
+
+@media (max-width: 768px) {
+  .panel, #info-panel {
+    font-size: 12px;
+    padding: 10px 14px;
+  }
+  
+  .btn {
+    padding: 8px 12px;
+    font-size: 13px;
+  }
+}
+</style>
+</head>
+
+<body>
+
+<div id="ui" class="panel">
+  <div class="title">🌱 Terrario AMI</div>
+  <div class="stat-line">
+    <span>🦠 AMIs:</span>
+    <span class="stat-value" id="a">0</span>
+  </div>
+  <div class="stat-line">
+    <span>🍎 Comida:</span>
+    <span class="stat-value" id="f">0</span>
+  </div>
+  <div class="stat-line">
+    <span>⏱️ Generación:</span>
+    <span class="stat-value" id="gen">1</span>
+  </div>
+</div>
+
+<div id="info-panel">
+  <strong>👆 Click/Toca:</strong> Crear comida<br/>
+  <strong>🧬 Reproducción:</strong> >80 energía<br/>
+  <strong>💀 Muerte:</strong> 0 energía<br/>
+  <strong>🎯 IA:</strong> Buscan comida cercana
+</div>
+
+<div class="btn-group">
+  <button id="toggle" class="btn">👁️</button>
+  <button id="spawn" class="btn">➕ AMI</button>
+  <button id="clear" class="btn">🗑️</button>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+
+const scene = new THREE.Scene();
+const camera = new THREE.OrthographicCamera(
+  innerWidth/-2, innerWidth/2,
+  innerHeight/2, innerHeight/-2,
+  0.1, 1000
+);
+camera.position.z = 10;
+
+const renderer = new THREE.WebGLRenderer({ antialias:true, alpha: true });
+renderer.setClearColor(0x000000, 0);
+renderer.setSize(innerWidth, innerHeight);
+document.body.appendChild(renderer.domElement);
+
+window.addEventListener('resize', () => {
+  renderer.setSize(innerWidth, innerHeight);
+  camera.left = innerWidth/-2;
+  camera.right = innerWidth/2;
+  camera.top = innerHeight/2;
+  camera.bottom = innerHeight/-2;
+  camera.updateProjectionMatrix();
+});
+
+/* ========= ENTIDADES ========= */
+
+const amis = [];
+const foods = [];
+let generation = 1;
+let maxGeneration = 1;
+
+const amiGeo = new THREE.CircleGeometry(5, 16);
+const foodGeo = new THREE.CircleGeometry(3, 12);
+
+// Glow para AMIs
+const glowGeo = new THREE.CircleGeometry(7, 16);
+
+function spawnFood(x,y){
+  const m = new THREE.MeshBasicMaterial({ 
+    color:0xffc857,
+    transparent: true,
+    opacity: 0.9
+  });
+  const mesh = new THREE.Mesh(foodGeo, m);
+  mesh.position.set(x,y,0);
+  mesh.energy = 20;
+
+  // Glow
+  const glowMat = new THREE.MeshBasicMaterial({ 
+    color: 0xffc857,
+    transparent: true,
+    opacity: 0.3
+  });
+  const glow = new THREE.Mesh(new THREE.CircleGeometry(5, 12), glowMat);
+  mesh.add(glow);
+
+  foods.push(mesh);
+  scene.add(mesh);
+}
+
+function spawnAmi(x, y, gen = 1){
+  // Color basado en generación
+  const hue = 0.45 + (gen * 0.02) % 0.3;
+  const color = new THREE.Color().setHSL(hue, 0.8, 0.5);
+  
+  const m = new THREE.MeshBasicMaterial({ 
+    color: color,
+    transparent: true,
+    opacity: 0.95
+  });
+  const mesh = new THREE.Mesh(amiGeo, m);
+
+  mesh.position.set(x,y,0);
+  mesh.vel = new THREE.Vector2(
+    (Math.random()-0.5)*2,
+    (Math.random()-0.5)*2
+  );
+  mesh.energy = 40;
+  mesh.generation = gen;
+
+  // Glow
+  const glowMat = new THREE.MeshBasicMaterial({ 
+    color: color,
+    transparent: true,
+    opacity: 0.2
+  });
+  const glow = new THREE.Mesh(glowGeo, glowMat);
+  mesh.add(glow);
+
+  // Animación de pulsación
+  mesh.pulsePhase = Math.random() * Math.PI * 2;
+
+  amis.push(mesh);
+  scene.add(mesh);
+
+  if (gen > maxGeneration) {
+    maxGeneration = gen;
+  }
+}
+
+/* ========= INPUT ========= */
+
+function worldPos(e){
+  const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+  const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+  const r = renderer.domElement.getBoundingClientRect();
+  return {
+    x: (clientX-r.left)-innerWidth/2,
+    y: -(clientY-r.top)+innerHeight/2
+  }
+}
+
+function handleSpawn(e) {
+  if (e.target.tagName === 'BUTTON') return;
+  const p = worldPos(e);
+  spawnFood(p.x,p.y);
+}
+
+renderer.domElement.addEventListener('mousedown', handleSpawn);
+renderer.domElement.addEventListener('touchstart', (e) => {
+  e.preventDefault();
+  handleSpawn(e);
+}, { passive: false });
+
+/* ========= LOOP ========= */
+
+const uiA = document.getElementById('a');
+const uiF = document.getElementById('f');
+const uiGen = document.getElementById('gen');
+
+let time = 0;
+
+function step(){
+  time += 0.016;
+
+  // comida random
+  if(Math.random() < 0.015 && foods.length < 50){
+    spawnFood(
+      (Math.random()-0.5)*innerWidth*0.8,
+      (Math.random()-0.5)*innerHeight*0.8
+    );
+  }
+
+  for(let ami of amis){
+
+    ami.energy -= 0.04;
+
+    // buscar comida más cercana
+    let closest = null;
+    let minD = 99999;
+
+    for(let f of foods){
+      const d = ami.position.distanceTo(f.position);
+      if(d < minD){
+        minD = d;
+        closest = f;
+      }
+    }
+
+    if(closest){
+      const dir = new THREE.Vector2(
+        closest.position.x - ami.position.x,
+        closest.position.y - ami.position.y
+      ).normalize();
+
+      ami.vel.add(dir.multiplyScalar(0.12));
+    } else {
+      // Movimiento aleatorio si no hay comida
+      ami.vel.x += (Math.random() - 0.5) * 0.05;
+      ami.vel.y += (Math.random() - 0.5) * 0.05;
+    }
+
+    ami.vel.multiplyScalar(0.96);
+    
+    // Limitar velocidad
+    const speed = ami.vel.length();
+    if (speed > 3) {
+      ami.vel.normalize().multiplyScalar(3);
+    }
+
+    ami.position.x += ami.vel.x;
+    ami.position.y += ami.vel.y;
+
+    // Límites con rebote suave
+    const limitX = innerWidth / 2 - 20;
+    const limitY = innerHeight / 2 - 20;
+    
+    if (Math.abs(ami.position.x) > limitX) {
+      ami.position.x = Math.sign(ami.position.x) * limitX;
+      ami.vel.x *= -0.8;
+    }
+    if (Math.abs(ami.position.y) > limitY) {
+      ami.position.y = Math.sign(ami.position.y) * limitY;
+      ami.vel.y *= -0.8;
+    }
+
+    // Animación de pulsación
+    ami.pulsePhase += 0.08;
+    const scale = 1 + Math.sin(ami.pulsePhase) * 0.1;
+    ami.scale.set(scale, scale, 1);
+
+    // comer
+    for(let i=foods.length-1;i>=0;i--){
+      const f = foods[i];
+      if(ami.position.distanceTo(f.position) < 8){
+        ami.energy += f.energy;
+        scene.remove(f);
+        foods.splice(i,1);
+      }
+    }
+
+    // reproducirse
+    if(ami.energy > 85 && amis.length < 200){
+      ami.energy *= 0.45;
+      spawnAmi(
+        ami.position.x + (Math.random()-0.5)*30,
+        ami.position.y + (Math.random()-0.5)*30,
+        ami.generation + 1
+      );
+    }
+  }
+
+  // muerte
+  for(let i=amis.length-1;i>=0;i--){
+    if(amis[i].energy <= 0){
+      scene.remove(amis[i]);
+      amis.splice(i,1);
+    }
+  }
+
+  // Actualizar UI
+  uiA.textContent = amis.length;
+  uiF.textContent = foods.length;
+  uiGen.textContent = maxGeneration;
+
+  renderer.render(scene,camera);
+  requestAnimationFrame(step);
+}
+
+/* ========= UI ========= */
+
+let uiVisible = true;
+
+document.getElementById('toggle').onclick=(e)=>{
+  e.stopPropagation();
+  uiVisible = !uiVisible;
+  document.getElementById('ui').classList.toggle('hidden');
+  document.getElementById('info-panel').classList.toggle('hidden');
+};
+
+document.getElementById('spawn').onclick=(e)=>{
+  e.stopPropagation();
+  spawnAmi(
+    (Math.random()-0.5)*innerWidth*0.6,
+    (Math.random()-0.5)*innerHeight*0.6,
+    1
+  );
+};
+
+document.getElementById('clear').onclick=(e)=>{
+  e.stopPropagation();
+  for(let ami of amis) scene.remove(ami);
+  for(let f of foods) scene.remove(f);
+  amis.length = 0;
+  foods.length = 0;
+  maxGeneration = 1;
+};
+
+/* ========= START ========= */
+
+for(let i=0;i<10;i++){
+  setTimeout(() => {
+    spawnAmi(
+      (Math.random()-0.5)*300,
+      (Math.random()-0.5)*300,
+      1
+    );
+  }, i * 100);
+}
+
+step();
+
+</script>
+</body>
+</html>
