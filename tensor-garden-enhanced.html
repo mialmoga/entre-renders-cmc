@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Tensor Garden — Velvet (Enhanced)</title>
+<style>
+    * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+        -webkit-tap-highlight-color: transparent;
+    }
+
+    html, body {
+        margin:0;
+        overflow:hidden;
+        background:#050507;
+        font-family:system-ui;
+        touch-action: none;
+    }
+
+    canvas {
+        touch-action: none;
+    }
+
+    #ui {
+        position:fixed;
+        top:10px;
+        left:10px;
+        background:rgba(0,0,0,.65);
+        backdrop-filter: blur(8px);
+        color:#fff;
+        padding:12px 16px;
+        border-radius:12px;
+        font-size:14px;
+        border: 1px solid rgba(16, 163, 127, 0.3);
+        transition: transform 0.3s ease, opacity 0.3s ease;
+    }
+
+    #ui.hidden {
+        transform: translateY(-20px);
+        opacity: 0;
+        pointer-events: none;
+    }
+
+    button{
+        background:#10a37f;
+        border:none;
+        color:#000;
+        font-weight:bold;
+        padding:8px 12px;
+        border-radius:8px;
+        cursor:pointer;
+        touch-action: manipulation;
+        user-select: none;
+        transition: all 0.2s;
+    }
+
+    button:active {
+        transform: scale(0.95);
+        background: #0d8968;
+    }
+
+    #toggle{
+        position:fixed;
+        bottom:16px;
+        right:16px;
+        border-radius:50%;
+        width:48px;
+        height:48px;
+        font-size:20px;
+        box-shadow: 0 4px 12px rgba(16, 163, 127, 0.4);
+        z-index: 1000;
+    }
+
+    #stats {
+        position: fixed;
+        bottom: 16px;
+        left: 16px;
+        background: rgba(0,0,0,.65);
+        backdrop-filter: blur(8px);
+        color: #10a37f;
+        padding: 10px 14px;
+        border-radius: 10px;
+        font-size: 13px;
+        border: 1px solid rgba(16, 163, 127, 0.3);
+        font-weight: bold;
+        transition: transform 0.3s ease, opacity 0.3s ease;
+    }
+
+    #stats.hidden {
+        transform: translateY(20px);
+        opacity: 0;
+        pointer-events: none;
+    }
+
+    @media (max-width: 768px) {
+        #ui {
+            font-size: 12px;
+            padding: 10px 12px;
+        }
+
+        #toggle {
+            width: 44px;
+            height: 44px;
+            font-size: 18px;
+        }
+    }
+</style>
+</head>
+<body>
+
+<div id="ui">
+    <div style="font-size:16px; margin-bottom:6px;">🌱 <strong>Tensor Garden</strong></div>
+    <div style="opacity:0.9; line-height:1.6;">
+        👆 toca / click = sembrar<br/>
+        🌬️ arrastra = viento<br/>
+        ⚛️ física = atracción mutua
+    </div>
+</div>
+
+<div id="stats">
+    Partículas: <span id="count">0</span>
+</div>
+
+<button id="toggle">👁️</button>
+
+<script src="https://cdn.jsdelivr.net/npm/three@0.160/build/three.min.js"></script>
+
+<script>
+const scene = new THREE.Scene();
+
+const camera = new THREE.PerspectiveCamera(
+    60,
+    window.innerWidth/window.innerHeight,
+    0.1,
+    1000
+);
+camera.position.z = 40;
+
+const renderer = new THREE.WebGLRenderer({ antialias:true });
+renderer.setSize(window.innerWidth, window.innerHeight);
+document.body.appendChild(renderer.domElement);
+
+const particles = [];
+const MAX = 1200;
+
+const geometry = new THREE.SphereGeometry(0.15, 6, 6);
+
+function createParticle(x,y){
+    const mat = new THREE.MeshBasicMaterial({
+        color: new THREE.Color().setHSL(Math.random(), 0.7, 0.6)
+    });
+
+    const mesh = new THREE.Mesh(geometry, mat);
+
+    mesh.position.set(x,y,0);
+
+    scene.add(mesh);
+
+    particles.push({
+        mesh,
+        vx:(Math.random()-.5)*.4,
+        vy:(Math.random()-.5)*.4
+    });
+
+    if(particles.length > MAX){
+        const old = particles.shift();
+        scene.remove(old.mesh);
+    }
+
+    updateCount();
+}
+
+function screenToWorld(px,py){
+    const v = new THREE.Vector3(
+        (px/window.innerWidth)*2-1,
+        -(py/window.innerHeight)*2+1,
+        0
+    );
+    v.unproject(camera);
+    return v;
+}
+
+function spawn(e){
+    // Evitar que se dispare en los botones
+    if (e.target.tagName === 'BUTTON') return;
+
+    const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+    const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+    
+    const p = screenToWorld(clientX, clientY);
+
+    for(let i=0;i<6;i++){
+        createParticle(
+            p.x + (Math.random()-.5)*1.5,
+            p.y + (Math.random()-.5)*1.5
+        );
+    }
+}
+
+// Event handlers unificados
+renderer.domElement.addEventListener("mousedown", spawn);
+renderer.domElement.addEventListener("touchstart", (e) => {
+    e.preventDefault();
+    spawn(e);
+}, { passive: false });
+
+let wind = {x:0,y:0};
+let lastTouch = null;
+
+renderer.domElement.addEventListener("mousemove", e=>{
+    wind.x = (e.movementX||0)*0.0008;
+    wind.y = (e.movementY||0)*0.0008;
+});
+
+renderer.domElement.addEventListener("touchmove", (e) => {
+    e.preventDefault();
+    if (e.touches.length > 0) {
+        const touch = e.touches[0];
+        if (lastTouch) {
+            const dx = touch.clientX - lastTouch.x;
+            const dy = touch.clientY - lastTouch.y;
+            wind.x = dx * 0.0008;
+            wind.y = dy * 0.0008;
+        }
+        lastTouch = { x: touch.clientX, y: touch.clientY };
+    }
+}, { passive: false });
+
+renderer.domElement.addEventListener("touchend", () => {
+    lastTouch = null;
+    wind.x = 0;
+    wind.y = 0;
+}, { passive: true });
+
+function update(){
+
+    for(let i=0;i<particles.length;i++){
+
+        const a = particles[i];
+
+        for(let j=i+1;j<particles.length;j++){
+            const b = particles[j];
+
+            const dx = b.mesh.position.x - a.mesh.position.x;
+            const dy = b.mesh.position.y - a.mesh.position.y;
+
+            const d2 = dx*dx + dy*dy;
+
+            if(d2 < 25 && d2 > 0.001){
+                const f = 0.0006/d2;
+
+                a.vx += dx*f;
+                a.vy += dy*f;
+                b.vx -= dx*f;
+                b.vy -= dy*f;
+            }
+        }
+
+        a.vx += wind.x;
+        a.vy -= wind.y;
+
+        a.vx *= .995;
+        a.vy *= .995;
+
+        a.mesh.position.x += a.vx;
+        a.mesh.position.y += a.vy;
+    }
+
+    // Decay del viento
+    wind.x *= 0.95;
+    wind.y *= 0.95;
+}
+
+function updateCount() {
+    document.getElementById('count').textContent = particles.length;
+}
+
+function animate(){
+    requestAnimationFrame(animate);
+    update();
+    renderer.render(scene, camera);
+}
+
+animate();
+
+window.addEventListener("resize",()=>{
+    camera.aspect = window.innerWidth/window.innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(window.innerWidth, window.innerHeight);
+});
+
+const ui = document.getElementById("ui");
+const stats = document.getElementById("stats");
+let uiVisible = true;
+
+document.getElementById("toggle").onclick=(e)=>{
+    e.stopPropagation();
+    uiVisible = !uiVisible;
+    ui.classList.toggle('hidden');
+    stats.classList.toggle('hidden');
+};
+
+// Crear algunas partículas iniciales
+setTimeout(() => {
+    for(let i = 0; i < 50; i++) {
+        setTimeout(() => {
+            createParticle(
+                (Math.random() - 0.5) * 30,
+                (Math.random() - 0.5) * 20
+            );
+        }, i * 30);
+    }
+}, 100);
+
+updateCount();
+</script>
+
+</body>
+</html>
