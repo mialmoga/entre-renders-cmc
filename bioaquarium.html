@@ -5,50 +5,76 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Acuario Biodinámico</title>
     <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
+        }
+        
         body {
             margin: 0;
             overflow: hidden;
             background: linear-gradient(180deg, #001a33 0%, #003d5c 50%, #004d66 100%);
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            touch-action: none;
         }
+        
         canvas {
             display: block;
+            touch-action: none;
         }
-        #info {
+        
+        .panel {
             position: absolute;
-            top: 20px;
-            left: 20px;
             color: #ffffff;
             background: rgba(0, 26, 51, 0.85);
             padding: 20px;
             border-radius: 15px;
             font-size: 13px;
-            max-width: 300px;
             backdrop-filter: blur(15px);
             border: 2px solid rgba(0, 200, 255, 0.4);
             box-shadow: 0 0 30px rgba(0, 200, 255, 0.3);
+            transition: transform 0.3s ease, opacity 0.3s ease;
         }
+        
+        .panel.hidden {
+            opacity: 0;
+            pointer-events: none;
+        }
+        
+        #info {
+            top: 20px;
+            left: 20px;
+            max-width: 300px;
+        }
+        
+        #info.hidden {
+            transform: translateY(-20px);
+        }
+        
         #info h2 {
             margin: 0 0 15px 0;
             font-size: 24px;
             color: #00d4ff;
             text-shadow: 0 0 10px rgba(0, 212, 255, 0.8);
         }
+        
         #info p {
             margin: 8px 0;
             line-height: 1.6;
         }
+        
         .control-panel {
-            position: absolute;
             bottom: 20px;
             right: 20px;
-            background: rgba(0, 26, 51, 0.85);
-            padding: 15px;
-            border-radius: 12px;
-            backdrop-filter: blur(15px);
-            border: 2px solid rgba(0, 200, 255, 0.4);
             min-width: 200px;
         }
+        
+        .control-panel.hidden {
+            transform: translateY(20px);
+        }
+        
         .stat {
             margin: 10px 0;
             display: flex;
@@ -56,10 +82,12 @@
             color: #ffffff;
             font-size: 14px;
         }
+        
         .stat-value {
             color: #00d4ff;
             font-weight: bold;
         }
+        
         button {
             background: linear-gradient(135deg, rgba(0, 212, 255, 0.3), rgba(0, 150, 200, 0.3));
             border: 2px solid #00d4ff;
@@ -72,27 +100,66 @@
             margin: 5px 0;
             width: 100%;
             font-size: 13px;
+            touch-action: manipulation;
+            user-select: none;
         }
-        button:hover {
-            background: linear-gradient(135deg, rgba(0, 212, 255, 0.5), rgba(0, 150, 200, 0.5));
-            transform: translateY(-2px);
-            box-shadow: 0 5px 20px rgba(0, 212, 255, 0.5);
-        }
+        
         button:active {
-            transform: translateY(0);
+            transform: translateY(0) scale(0.95);
+            background: linear-gradient(135deg, rgba(0, 212, 255, 0.5), rgba(0, 150, 200, 0.5));
         }
+        
         #soundToggle {
             background: linear-gradient(135deg, rgba(255, 100, 0, 0.3), rgba(200, 50, 0, 0.3));
             border-color: #ff6400;
         }
-        #soundToggle:hover {
+        
+        #soundToggle:active {
             background: linear-gradient(135deg, rgba(255, 100, 0, 0.5), rgba(200, 50, 0, 0.5));
-            box-shadow: 0 5px 20px rgba(255, 100, 0, 0.5);
+        }
+        
+        .toggle-btn {
+            position: absolute;
+            background: linear-gradient(135deg, rgba(0, 212, 255, 0.4), rgba(0, 150, 200, 0.4));
+            border: 2px solid #00d4ff;
+            color: #ffffff;
+            padding: 12px 18px;
+            border-radius: 50px;
+            font-size: 18px;
+            box-shadow: 0 4px 15px rgba(0, 212, 255, 0.4);
+            z-index: 1000;
+            width: auto;
+        }
+        
+        #toggleInfo {
+            top: 20px;
+            right: 20px;
+        }
+        
+        #toggleControls {
+            bottom: 20px;
+            left: 20px;
+        }
+        
+        @media (max-width: 768px) {
+            .panel {
+                max-width: 260px;
+                font-size: 12px;
+                padding: 15px;
+            }
+            
+            .toggle-btn {
+                padding: 10px 15px;
+                font-size: 16px;
+            }
         }
     </style>
 </head>
 <body>
-    <div id="info">
+    <button class="toggle-btn" id="toggleInfo">👁️ Info</button>
+    <button class="toggle-btn" id="toggleControls">🎮 Controles</button>
+
+    <div id="info" class="panel">
         <h2>🌊 Acuario Biodinámico</h2>
         <p><strong>🖱️ Click:</strong> Crear corriente de agua</p>
         <p><strong>🐠 Criaturas:</strong> Nadan con comportamiento de cardumen</p>
@@ -101,7 +168,7 @@
         <p><strong>🌿 Algas:</strong> Se mueven con las corrientes</p>
     </div>
 
-    <div class="control-panel">
+    <div class="control-panel panel">
         <div class="stat">
             <span>🐟 Peces:</span>
             <span class="stat-value" id="fishCount">0</span>
@@ -576,13 +643,13 @@
             setTimeout(() => addSeaweed(), i * 150);
         }
 
-        // Interacción con mouse
+        // Interacción con mouse y touch
         const raycaster = new THREE.Raycaster();
         const mouse = new THREE.Vector2();
 
-        renderer.domElement.addEventListener('click', (event) => {
-            mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
-            mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+        function handleClick(clientX, clientY) {
+            mouse.x = (clientX / window.innerWidth) * 2 - 1;
+            mouse.y = -(clientY / window.innerHeight) * 2 + 1;
 
             raycaster.setFromCamera(mouse, camera);
             const intersectPoint = new THREE.Vector3();
@@ -591,7 +658,18 @@
             const current = new WaterCurrent(intersectPoint.x, intersectPoint.y, intersectPoint.z);
             waterCurrents.push(current);
             updateStats();
+        }
+
+        renderer.domElement.addEventListener('click', (event) => {
+            handleClick(event.clientX, event.clientY);
         });
+
+        renderer.domElement.addEventListener('touchstart', (event) => {
+            if (event.touches.length > 0) {
+                const touch = event.touches[0];
+                handleClick(touch.clientX, touch.clientY);
+            }
+        }, { passive: true });
 
         // Botones
         document.getElementById('addFishBtn').addEventListener('click', () => {
@@ -627,6 +705,17 @@
                 setTimeout(() => addSeaweed(), i * 150);
             }
             updateStats();
+        });
+
+        // Toggle panels
+        document.getElementById('toggleInfo').addEventListener('click', (e) => {
+            e.stopPropagation();
+            document.getElementById('info').classList.toggle('hidden');
+        });
+
+        document.getElementById('toggleControls').addEventListener('click', (e) => {
+            e.stopPropagation();
+            document.querySelector('.control-panel').classList.toggle('hidden');
         });
 
         window.addEventListener('resize', () => {

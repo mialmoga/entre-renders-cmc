@@ -5,63 +5,89 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Ciudad Orgánica Generativa</title>
     <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
+        }
+        
         body {
             margin: 0;
             overflow: hidden;
             background: linear-gradient(180deg, #ffd89b 0%, #19547b 100%);
             font-family: 'Arial', sans-serif;
+            touch-action: none;
         }
+        
         canvas {
             display: block;
+            touch-action: none;
         }
-        #info {
+        
+        .panel {
             position: absolute;
-            top: 20px;
-            left: 20px;
             color: #ffffff;
             background: rgba(25, 84, 123, 0.85);
             padding: 18px;
             border-radius: 12px;
             font-size: 14px;
-            max-width: 320px;
             backdrop-filter: blur(10px);
             border: 2px solid rgba(255, 255, 255, 0.3);
             box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+            transition: transform 0.3s ease, opacity 0.3s ease;
         }
+        
+        .panel.hidden {
+            opacity: 0;
+            pointer-events: none;
+        }
+        
+        #info {
+            top: 20px;
+            left: 20px;
+            max-width: 320px;
+        }
+        
+        #info.hidden {
+            transform: translateY(-20px);
+        }
+        
+        #stats {
+            bottom: 20px;
+            left: 20px;
+            min-width: 180px;
+        }
+        
+        #stats.hidden {
+            transform: translateY(20px);
+        }
+        
         #info h2 {
             margin: 0 0 12px 0;
             font-size: 22px;
             color: #ffd89b;
             text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
         }
+        
         #info p {
             margin: 6px 0;
             line-height: 1.6;
         }
-        #stats {
-            position: absolute;
-            bottom: 20px;
-            left: 20px;
-            color: #ffffff;
-            background: rgba(25, 84, 123, 0.85);
-            padding: 15px;
-            border-radius: 10px;
-            font-size: 13px;
-            backdrop-filter: blur(10px);
-            border: 2px solid rgba(255, 255, 255, 0.3);
-            min-width: 180px;
-        }
+        
         .stat-item {
             margin: 5px 0;
             display: flex;
             justify-content: space-between;
             align-items: center;
         }
+        
         .stat-value {
             font-weight: bold;
             color: #ffd89b;
             font-size: 16px;
         }
+        
         button {
             background: rgba(255, 216, 155, 0.3);
             border: 2px solid #ffd89b;
@@ -74,16 +100,57 @@
             margin: 5px 0;
             width: 100%;
             font-size: 13px;
+            touch-action: manipulation;
+            user-select: none;
         }
-        button:hover {
+        
+        button:active {
+            transform: translateY(0) scale(0.95);
             background: rgba(255, 216, 155, 0.6);
-            transform: translateY(-2px);
-            box-shadow: 0 4px 12px rgba(255, 216, 155, 0.4);
+        }
+        
+        .toggle-btn {
+            position: absolute;
+            background: rgba(255, 216, 155, 0.4);
+            border: 2px solid #ffd89b;
+            color: #ffffff;
+            padding: 12px 18px;
+            border-radius: 50px;
+            font-size: 18px;
+            box-shadow: 0 4px 15px rgba(255, 216, 155, 0.4);
+            z-index: 1000;
+            width: auto;
+        }
+        
+        #toggleInfo {
+            top: 20px;
+            right: 20px;
+        }
+        
+        #toggleStats {
+            bottom: 20px;
+            right: 20px;
+        }
+        
+        @media (max-width: 768px) {
+            .panel {
+                max-width: 280px;
+                font-size: 12px;
+                padding: 15px;
+            }
+            
+            .toggle-btn {
+                padding: 10px 15px;
+                font-size: 16px;
+            }
         }
     </style>
 </head>
 <body>
-    <div id="info">
+    <button class="toggle-btn" id="toggleInfo">👁️ Info</button>
+    <button class="toggle-btn" id="toggleStats">📊 Stats</button>
+
+    <div id="info" class="panel">
         <h2>🏙️ Ciudad Orgánica</h2>
         <p><strong>🖱️ Click:</strong> Plantar edificio</p>
         <p><strong>🌱 Espera:</strong> Los edificios crecen solos</p>
@@ -93,7 +160,7 @@
         <button id="autoBtn">🤖 Auto-Construcción</button>
     </div>
 
-    <div id="stats">
+    <div id="stats" class="panel">
         <div class="stat-item">
             <span>🏢 Edificios:</span>
             <span class="stat-value" id="buildingCount">0</span>
@@ -319,13 +386,13 @@
             document.getElementById('energy').textContent = energy + '%';
         }
 
-        // Interacción con mouse
+        // Interacción con mouse y touch
         const raycaster = new THREE.Raycaster();
         const mouse = new THREE.Vector2();
 
-        renderer.domElement.addEventListener('click', (event) => {
-            mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
-            mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+        function handleClick(clientX, clientY) {
+            mouse.x = (clientX / window.innerWidth) * 2 - 1;
+            mouse.y = -(clientY / window.innerHeight) * 2 + 1;
             
             raycaster.setFromCamera(mouse, camera);
             const intersects = raycaster.intersectObject(ground);
@@ -334,40 +401,92 @@
                 const point = intersects[0].point;
                 addBuilding(point.x, point.z);
             }
+        }
+
+        renderer.domElement.addEventListener('click', (event) => {
+            handleClick(event.clientX, event.clientY);
         });
+
+        renderer.domElement.addEventListener('touchstart', (event) => {
+            if (event.touches.length > 0) {
+                const touch = event.touches[0];
+                handleClick(touch.clientX, touch.clientY);
+            }
+        }, { passive: true });
 
         // Control de cámara
         let isDragging = false;
         let previousMousePosition = { x: 0, y: 0 };
         let cameraRotation = { x: 0, y: 0 };
 
-        renderer.domElement.addEventListener('mousedown', (e) => {
+        function handleDragStart(clientX, clientY) {
             isDragging = true;
-            previousMousePosition = { x: e.clientX, y: e.clientY };
-        });
+            previousMousePosition = { x: clientX, y: clientY };
+        }
 
-        renderer.domElement.addEventListener('mousemove', (e) => {
+        function handleDragMove(clientX, clientY) {
             if (isDragging) {
-                const deltaX = e.clientX - previousMousePosition.x;
-                const deltaY = e.clientY - previousMousePosition.y;
+                const deltaX = clientX - previousMousePosition.x;
+                const deltaY = clientY - previousMousePosition.y;
                 
                 cameraRotation.y += deltaX * 0.005;
                 cameraRotation.x += deltaY * 0.005;
                 cameraRotation.x = Math.max(-Math.PI / 3, Math.min(Math.PI / 3, cameraRotation.x));
                 
-                previousMousePosition = { x: e.clientX, y: e.clientY };
+                previousMousePosition = { x: clientX, y: clientY };
             }
+        }
+
+        function handleDragEnd() {
+            isDragging = false;
+        }
+
+        renderer.domElement.addEventListener('mousedown', (e) => {
+            handleDragStart(e.clientX, e.clientY);
+        });
+
+        renderer.domElement.addEventListener('mousemove', (e) => {
+            handleDragMove(e.clientX, e.clientY);
         });
 
         renderer.domElement.addEventListener('mouseup', () => {
-            isDragging = false;
+            handleDragEnd();
         });
+
+        renderer.domElement.addEventListener('touchstart', (e) => {
+            if (e.touches.length === 1) {
+                const touch = e.touches[0];
+                handleDragStart(touch.clientX, touch.clientY);
+            }
+        }, { passive: true });
+
+        renderer.domElement.addEventListener('touchmove', (e) => {
+            if (e.touches.length === 1) {
+                const touch = e.touches[0];
+                handleDragMove(touch.clientX, touch.clientY);
+            }
+        }, { passive: true });
+
+        renderer.domElement.addEventListener('touchend', () => {
+            handleDragEnd();
+        }, { passive: true });
 
         // Botones
         document.getElementById('clearBtn').addEventListener('click', clearCity);
         document.getElementById('autoBtn').addEventListener('click', () => {
             autoMode = !autoMode;
             document.getElementById('autoBtn').textContent = autoMode ? '⏸️ Pausar Auto' : '🤖 Auto-Construcción';
+        });
+
+        // Toggle panels
+        document.getElementById('toggleInfo').addEventListener('click', (e) => {
+            e.stopPropagation();
+            document.getElementById('info').classList.toggle('hidden');
+        });
+
+        document.getElementById('toggleStats').addEventListener('click', (e) => {
+            e.stopPropagation();
+            document.getElementById('stats').classList.toggle('hidden');
         });
 
         // Teclado

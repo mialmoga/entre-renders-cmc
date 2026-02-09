@@ -5,40 +5,97 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Jardín Cósmico Interactivo</title>
     <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
+        }
+        
         body {
             margin: 0;
             overflow: hidden;
             background: #000000;
             font-family: 'Arial', sans-serif;
+            touch-action: none;
         }
+        
         canvas {
             display: block;
+            touch-action: none;
         }
+        
         #info {
             position: absolute;
             top: 20px;
             left: 20px;
             color: #ffffff;
-            background: rgba(0, 0, 0, 0.6);
+            background: rgba(0, 0, 0, 0.8);
             padding: 15px;
             border-radius: 10px;
             font-size: 14px;
             max-width: 300px;
             backdrop-filter: blur(10px);
             border: 1px solid rgba(255, 255, 255, 0.1);
+            transition: transform 0.3s ease, opacity 0.3s ease;
         }
+        
+        #info.hidden {
+            transform: translateY(-20px);
+            opacity: 0;
+            pointer-events: none;
+        }
+        
         #info h2 {
             margin: 0 0 10px 0;
             font-size: 18px;
             color: #00ffff;
         }
+        
         #info p {
             margin: 5px 0;
             line-height: 1.4;
         }
+        
+        .toggle-btn {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: rgba(0, 255, 255, 0.3);
+            border: 2px solid #00ffff;
+            color: #ffffff;
+            padding: 12px 18px;
+            border-radius: 50px;
+            cursor: pointer;
+            font-weight: bold;
+            font-size: 18px;
+            box-shadow: 0 4px 15px rgba(0, 255, 255, 0.4);
+            transition: all 0.3s ease;
+            z-index: 1000;
+            user-select: none;
+            touch-action: manipulation;
+        }
+        
+        .toggle-btn:active {
+            transform: scale(0.95);
+        }
+        
+        @media (max-width: 768px) {
+            #info {
+                max-width: 260px;
+                font-size: 12px;
+            }
+            
+            .toggle-btn {
+                padding: 10px 15px;
+                font-size: 16px;
+            }
+        }
     </style>
 </head>
 <body>
+    <button class="toggle-btn" id="toggleInfo">👁️ Info</button>
+    
     <div id="info">
         <h2>🌌 Jardín Cósmico</h2>
         <p><strong>🖱️ Click:</strong> Crea flores cósmicas</p>
@@ -209,30 +266,63 @@
         const raycaster = new THREE.Raycaster();
         let mouseWorld = null;
 
-        // Event listeners
-        window.addEventListener('mousemove', (event) => {
-            mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
-            mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+        // Función unificada para obtener posición
+        function getWorldPosition(clientX, clientY) {
+            const x = (clientX / window.innerWidth) * 2 - 1;
+            const y = -(clientY / window.innerHeight) * 2 + 1;
             
-            raycaster.setFromCamera(mouse, camera);
+            raycaster.setFromCamera(new THREE.Vector2(x, y), camera);
             const distance = -camera.position.z / raycaster.ray.direction.z;
-            mouseWorld = camera.position.clone().add(
+            return camera.position.clone().add(
                 raycaster.ray.direction.multiplyScalar(distance)
             );
+        }
+
+        // Event listeners unificados
+        function handleInteraction(clientX, clientY, isClick = false) {
+            mouseWorld = getWorldPosition(clientX, clientY);
+            
+            if (isClick) {
+                const x = (clientX / window.innerWidth) * 2 - 1;
+                const y = -(clientY / window.innerHeight) * 2 + 1;
+                const flower = new CosmicFlower(x, y);
+                cosmicFlowers.push(flower);
+                
+                if(cosmicFlowers.length > 15) {
+                    const oldFlower = cosmicFlowers.shift();
+                    scene.remove(oldFlower.group);
+                }
+            }
+        }
+
+        // Mouse events
+        window.addEventListener('mousemove', (event) => {
+            handleInteraction(event.clientX, event.clientY, false);
         });
 
         window.addEventListener('click', (event) => {
-            const x = (event.clientX / window.innerWidth) * 2 - 1;
-            const y = -(event.clientY / window.innerHeight) * 2 + 1;
-            
-            const flower = new CosmicFlower(x, y);
-            cosmicFlowers.push(flower);
-            
-            // Limitar cantidad de flores
-            if(cosmicFlowers.length > 15) {
-                const oldFlower = cosmicFlowers.shift();
-                scene.remove(oldFlower.group);
+            handleInteraction(event.clientX, event.clientY, true);
+        });
+
+        // Touch events
+        window.addEventListener('touchmove', (event) => {
+            if (event.touches.length > 0) {
+                const touch = event.touches[0];
+                handleInteraction(touch.clientX, touch.clientY, false);
             }
+        }, { passive: true });
+
+        window.addEventListener('touchstart', (event) => {
+            if (event.touches.length > 0) {
+                const touch = event.touches[0];
+                handleInteraction(touch.clientX, touch.clientY, true);
+            }
+        }, { passive: true });
+
+        // Toggle panel
+        document.getElementById('toggleInfo').addEventListener('click', (e) => {
+            e.stopPropagation();
+            document.getElementById('info').classList.toggle('hidden');
         });
 
         window.addEventListener('resize', () => {

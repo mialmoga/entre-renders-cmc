@@ -5,21 +5,32 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Escultura Líquida Sonora</title>
     <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
+        }
+        
         body {
             margin: 0;
             overflow: hidden;
             background: linear-gradient(135deg, #1a1a2e 0%, #0f0f1e 50%, #16213e 100%);
             font-family: 'Courier New', monospace;
+            touch-action: none;
         }
+        
         canvas {
             display: block;
+            touch-action: none;
         }
+        
         #info {
             position: absolute;
             top: 20px;
             right: 20px;
             color: #00ff88;
-            background: rgba(0, 0, 0, 0.7);
+            background: rgba(0, 0, 0, 0.85);
             padding: 20px;
             border-radius: 15px;
             font-size: 13px;
@@ -27,17 +38,27 @@
             backdrop-filter: blur(15px);
             border: 2px solid rgba(0, 255, 136, 0.3);
             box-shadow: 0 0 20px rgba(0, 255, 136, 0.2);
+            transition: transform 0.3s ease, opacity 0.3s ease;
         }
+        
+        #info.hidden {
+            transform: translateX(20px);
+            opacity: 0;
+            pointer-events: none;
+        }
+        
         #info h2 {
             margin: 0 0 15px 0;
             font-size: 20px;
             color: #00ff88;
             text-shadow: 0 0 10px rgba(0, 255, 136, 0.5);
         }
+        
         #info p {
             margin: 8px 0;
             line-height: 1.5;
         }
+        
         .control {
             margin: 10px 0;
             padding: 10px;
@@ -45,24 +66,57 @@
             border-radius: 8px;
             border: 1px solid rgba(0, 255, 136, 0.2);
         }
+        
         button {
             background: rgba(0, 255, 136, 0.2);
             border: 2px solid #00ff88;
             color: #00ff88;
-            padding: 8px 15px;
+            padding: 10px 15px;
             border-radius: 5px;
             cursor: pointer;
             font-family: 'Courier New', monospace;
             font-weight: bold;
             transition: all 0.3s;
+            touch-action: manipulation;
+            user-select: none;
         }
-        button:hover {
+        
+        button:active {
+            transform: scale(0.95);
             background: rgba(0, 255, 136, 0.4);
-            box-shadow: 0 0 15px rgba(0, 255, 136, 0.4);
+        }
+        
+        .toggle-btn {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            background: rgba(0, 255, 136, 0.3);
+            border: 2px solid #00ff88;
+            color: #00ff88;
+            padding: 12px 18px;
+            border-radius: 50px;
+            font-size: 18px;
+            box-shadow: 0 4px 15px rgba(0, 255, 136, 0.4);
+            z-index: 1000;
+        }
+        
+        @media (max-width: 768px) {
+            #info {
+                max-width: 240px;
+                font-size: 12px;
+                padding: 15px;
+            }
+            
+            .toggle-btn {
+                padding: 10px 15px;
+                font-size: 16px;
+            }
         }
     </style>
 </head>
 <body>
+    <button class="toggle-btn" id="toggleInfo">🎮 Controles</button>
+    
     <div id="info">
         <h2>🎵 Escultura Líquida</h2>
         <p><strong>🖱️ Arrastra:</strong> Gira la escultura</p>
@@ -199,37 +253,78 @@
             }
         }
 
-        // Controles de mouse
+        // Controles de mouse y touch
         let isDragging = false;
         let previousMousePosition = { x: 0, y: 0 };
         let rotation = { x: 0, y: 0 };
 
-        renderer.domElement.addEventListener('mousedown', (e) => {
+        function handleStart(clientX, clientY) {
             isDragging = true;
-            previousMousePosition = { x: e.clientX, y: e.clientY };
-        });
+            previousMousePosition = { x: clientX, y: clientY };
+        }
 
-        renderer.domElement.addEventListener('mousemove', (e) => {
+        function handleMove(clientX, clientY) {
             if (isDragging) {
-                const deltaX = e.clientX - previousMousePosition.x;
-                const deltaY = e.clientY - previousMousePosition.y;
+                const deltaX = clientX - previousMousePosition.x;
+                const deltaY = clientY - previousMousePosition.y;
                 
                 rotation.y += deltaX * 0.01;
                 rotation.x += deltaY * 0.01;
                 
-                previousMousePosition = { x: e.clientX, y: e.clientY };
+                previousMousePosition = { x: clientX, y: clientY };
             }
-        });
+        }
 
-        renderer.domElement.addEventListener('mouseup', () => {
+        function handleEnd() {
             isDragging = false;
-        });
+        }
 
-        renderer.domElement.addEventListener('click', (e) => {
+        function handleClick(clientX, clientY) {
             if (!isDragging) {
                 pulseWaves.push(new PulseWave());
             }
+        }
+
+        // Mouse events
+        renderer.domElement.addEventListener('mousedown', (e) => {
+            handleStart(e.clientX, e.clientY);
         });
+
+        renderer.domElement.addEventListener('mousemove', (e) => {
+            handleMove(e.clientX, e.clientY);
+        });
+
+        renderer.domElement.addEventListener('mouseup', () => {
+            handleEnd();
+        });
+
+        renderer.domElement.addEventListener('click', (e) => {
+            handleClick(e.clientX, e.clientY);
+        });
+
+        // Touch events
+        renderer.domElement.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            const touch = e.touches[0];
+            handleStart(touch.clientX, touch.clientY);
+        }, { passive: false });
+
+        renderer.domElement.addEventListener('touchmove', (e) => {
+            e.preventDefault();
+            if (e.touches.length > 0) {
+                const touch = e.touches[0];
+                handleMove(touch.clientX, touch.clientY);
+            }
+        }, { passive: false });
+
+        renderer.domElement.addEventListener('touchend', (e) => {
+            e.preventDefault();
+            const wasClick = !isDragging;
+            handleEnd();
+            if (wasClick) {
+                pulseWaves.push(new PulseWave());
+            }
+        }, { passive: false });
 
         renderer.domElement.addEventListener('wheel', (e) => {
             e.preventDefault();
@@ -251,6 +346,12 @@
             pointLight1.color.setHex(palette.light1);
             pointLight2.color.setHex(palette.light2);
             pointLight3.color.setHex(palette.light3);
+        });
+
+        // Toggle panel
+        document.getElementById('toggleInfo').addEventListener('click', (e) => {
+            e.stopPropagation();
+            document.getElementById('info').classList.toggle('hidden');
         });
 
         window.addEventListener('resize', () => {
