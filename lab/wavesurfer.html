@@ -1,0 +1,879 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>WAVESURFER — Audiosurf Web</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Share+Tech+Mono&display=swap');
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --neon-cyan: #00f5ff; --neon-magenta: #ff00aa;
+    --neon-yellow: #ffee00; --neon-green: #00ff88;
+    --dark: #05050f; --panel: rgba(0,5,20,0.85);
+    --glow: 0 0 20px var(--neon-cyan), 0 0 40px rgba(0,245,255,0.3);
+  }
+  html, body { width:100%; height:100%; overflow:hidden; background:var(--dark);
+    font-family:'Share Tech Mono',monospace; color:#fff;
+    touch-action:none; user-select:none; -webkit-user-select:none; }
+  #canvas { position:fixed; top:0; left:0; width:100%; height:100%; display:block; }
+
+  .screen { position:fixed; inset:0; display:flex; flex-direction:column;
+    align-items:center; justify-content:center;
+    background:linear-gradient(135deg,#05050f 0%,#0a0520 50%,#050a1a 100%);
+    z-index:100; transition:opacity .5s, transform .5s; }
+  .screen.hidden { opacity:0; pointer-events:none; transform:scale(1.05); }
+
+  #title-screen { gap:24px; padding:24px; }
+  .logo { font-family:'Orbitron',monospace; font-weight:900;
+    font-size:clamp(2.4rem,8vw,5rem); letter-spacing:0.08em;
+    background:linear-gradient(90deg,var(--neon-cyan),var(--neon-magenta),var(--neon-yellow));
+    -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text;
+    filter:drop-shadow(0 0 24px rgba(0,245,255,0.7));
+    animation:pulse 3s ease-in-out infinite; }
+  @keyframes pulse {
+    0%,100%{filter:drop-shadow(0 0 24px rgba(0,245,255,0.7));}
+    50%{filter:drop-shadow(0 0 40px rgba(255,0,170,0.9));} }
+  .tagline { font-size:clamp(0.7rem,2.5vw,1rem); color:rgba(0,245,255,0.6);
+    letter-spacing:0.3em; text-transform:uppercase; margin-top:-12px; }
+
+  .upload-zone { width:min(420px,90vw); border:2px dashed rgba(0,245,255,0.4);
+    border-radius:16px; padding:clamp(28px,6vw,48px) 24px; text-align:center;
+    cursor:pointer; transition:all .3s; background:rgba(0,245,255,0.03); }
+  .upload-zone:hover,.upload-zone.drag-over {
+    border-color:var(--neon-cyan); background:rgba(0,245,255,0.08); box-shadow:var(--glow); }
+  .upload-icon { font-size:3rem; margin-bottom:12px; }
+  .upload-text { font-size:clamp(0.85rem,2.5vw,1rem); color:rgba(255,255,255,0.7); line-height:1.6; }
+  .upload-text span { color:var(--neon-cyan); }
+  #file-input { display:none; }
+
+  .btn { font-family:'Orbitron',monospace; font-weight:700;
+    font-size:clamp(0.8rem,2.2vw,0.9rem); letter-spacing:0.15em; text-transform:uppercase;
+    padding:14px 32px; border:none; border-radius:8px; cursor:pointer; transition:all .25s; }
+  .btn-primary { background:linear-gradient(90deg,var(--neon-cyan),var(--neon-magenta));
+    color:#000; box-shadow:0 0 20px rgba(0,245,255,0.4); }
+  .btn-primary:hover { transform:scale(1.04); box-shadow:0 0 35px rgba(0,245,255,0.7); }
+  .btn-secondary { background:transparent; color:var(--neon-cyan);
+    border:1px solid rgba(0,245,255,0.5); }
+  .btn-secondary:hover { background:rgba(0,245,255,0.1); }
+
+  .analyzing-box { width:min(420px,90vw); text-align:center; padding:32px;
+    border:1px solid rgba(0,245,255,0.2); border-radius:16px; background:var(--panel); }
+  .analyzing-box h3 { font-family:'Orbitron',monospace; color:var(--neon-cyan);
+    margin-bottom:20px; font-size:clamp(1rem,3vw,1.3rem); }
+  .pbar { width:100%; height:6px; background:rgba(255,255,255,0.1);
+    border-radius:99px; overflow:hidden; margin-bottom:12px; }
+  .pfill { height:100%; background:linear-gradient(90deg,var(--neon-cyan),var(--neon-magenta));
+    border-radius:99px; width:0%; transition:width .3s; box-shadow:0 0 12px var(--neon-cyan); }
+  .plabel { font-size:0.8rem; color:rgba(255,255,255,0.5); letter-spacing:0.1em; }
+
+  #hud { position:fixed; inset:0; pointer-events:none; z-index:50; display:none; }
+  #hud.on { display:block; }
+  .hud-top { position:absolute; top:0; left:0; right:0;
+    padding:clamp(8px,2vw,16px) clamp(12px,3vw,24px);
+    display:flex; justify-content:space-between; align-items:flex-start;
+    background:linear-gradient(to bottom,rgba(5,5,15,.9),transparent); }
+  .hud-score { font-family:'Orbitron',monospace; font-size:clamp(1.4rem,4vw,2.2rem);
+    font-weight:900; color:var(--neon-yellow); text-shadow:0 0 20px rgba(255,238,0,.8); }
+  .hl { font-size:clamp(.55rem,1.5vw,.7rem); color:rgba(255,255,255,.4);
+    letter-spacing:.2em; text-transform:uppercase; margin-bottom:2px; }
+  .hud-ct { text-align:center; flex:1; }
+  .tname { font-family:'Orbitron',monospace; font-size:clamp(.65rem,2vw,.85rem);
+    color:rgba(255,255,255,.7); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:200px; }
+  .hmult { text-align:right; font-family:'Orbitron',monospace; }
+  .mval { font-size:clamp(1.4rem,4vw,2.2rem); font-weight:900;
+    color:var(--neon-magenta); text-shadow:0 0 20px rgba(255,0,170,.8); }
+  .hud-bot { position:absolute; bottom:0; left:0; right:0;
+    padding:clamp(8px,2vw,16px) clamp(12px,3vw,24px);
+    background:linear-gradient(to top,rgba(5,5,15,.9),transparent); }
+  .prog-track { width:100%; height:4px; background:rgba(255,255,255,.1);
+    border-radius:99px; margin-bottom:clamp(8px,2vw,16px); }
+  .prog-fill { height:100%; background:linear-gradient(90deg,var(--neon-cyan),var(--neon-magenta));
+    border-radius:99px; width:0%; box-shadow:0 0 8px var(--neon-cyan); }
+  .hud-stats { display:flex; justify-content:space-between; }
+  .si { text-align:center; }
+  .sv { font-family:'Orbitron',monospace; font-size:clamp(.9rem,2.5vw,1.2rem);
+    font-weight:700; color:var(--neon-green); }
+  .sl { font-size:clamp(.5rem,1.3vw,.65rem); color:rgba(255,255,255,.35);
+    letter-spacing:.15em; text-transform:uppercase; }
+
+  .tz { position:fixed; bottom:80px; z-index:60; pointer-events:auto; display:none; }
+  .tz.on { display:flex; align-items:center; justify-content:center; }
+  #tz-l { left:12px; } #tz-r { right:12px; }
+  .tbtn { width:clamp(56px,15vw,72px); height:clamp(56px,15vw,72px);
+    border-radius:50%; border:2px solid rgba(0,245,255,.4);
+    background:rgba(0,245,255,.08); display:flex; align-items:center;
+    justify-content:center; font-size:1.5rem; color:rgba(0,245,255,.6); backdrop-filter:blur(8px); }
+  .tbtn.pr { background:rgba(0,245,255,.25); border-color:var(--neon-cyan);
+    box-shadow:0 0 20px rgba(0,245,255,.5); color:var(--neon-cyan); }
+
+  #combo-pop { position:fixed; top:35%; left:50%;
+    transform:translateX(-50%) scale(0); font-family:'Orbitron',monospace; font-weight:900;
+    font-size:clamp(1.5rem,5vw,2.5rem); color:var(--neon-yellow);
+    text-shadow:0 0 30px rgba(255,238,0,.9); pointer-events:none; z-index:200;
+    transition:transform .15s cubic-bezier(.34,1.56,.64,1),opacity .3s; opacity:0; white-space:nowrap; }
+  #combo-pop.on { transform:translateX(-50%) scale(1); opacity:1; }
+
+  #pbtn { position:fixed; top:clamp(8px,2vw,16px); right:clamp(8px,2vw,16px);
+    width:44px; height:44px; border-radius:50%; background:rgba(0,0,0,.5);
+    border:1px solid rgba(255,255,255,.2); color:rgba(255,255,255,.7);
+    font-size:1.1rem; cursor:pointer; pointer-events:auto; display:none;
+    align-items:center; justify-content:center; z-index:70; backdrop-filter:blur(8px); }
+  #pbtn.on { display:flex; }
+
+  #pause-ov { position:fixed; inset:0; background:rgba(5,5,15,.85);
+    backdrop-filter:blur(12px); z-index:150; display:none;
+    flex-direction:column; align-items:center; justify-content:center; gap:20px; }
+  #pause-ov.on { display:flex; }
+  #pause-ov h2 { font-family:'Orbitron',monospace; font-size:2rem; color:var(--neon-cyan); }
+
+  #end-ov { position:fixed; inset:0; background:rgba(5,5,15,.92);
+    backdrop-filter:blur(20px); z-index:180; display:none;
+    flex-direction:column; align-items:center; justify-content:center; gap:20px; padding:24px; }
+  #end-ov.on { display:flex; }
+  #end-ov h2 { font-family:'Orbitron',monospace; font-size:clamp(1.8rem,6vw,3rem); font-weight:900;
+    background:linear-gradient(90deg,var(--neon-cyan),var(--neon-yellow));
+    -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text; }
+  .es { font-family:'Orbitron',monospace; text-align:center; }
+  .esv { font-size:clamp(1.8rem,5vw,2.5rem); font-weight:900; color:var(--neon-yellow); }
+  .esl { font-size:.75rem; color:rgba(255,255,255,.4); letter-spacing:.2em; text-transform:uppercase; }
+  .er { display:flex; gap:40px; align-items:center; }
+
+  .bg-grid { position:fixed; inset:0; z-index:1; pointer-events:none;
+    background-image:linear-gradient(rgba(0,245,255,.04) 1px,transparent 1px),
+      linear-gradient(90deg,rgba(0,245,255,.04) 1px,transparent 1px);
+    background-size:40px 40px; }
+  .demo-link { font-size:.75rem; color:rgba(255,255,255,.35); letter-spacing:.15em;
+    cursor:pointer; text-decoration:underline; text-underline-offset:4px; }
+  .demo-link:hover { color:var(--neon-cyan); }
+  .tips { font-size:clamp(.6rem,1.8vw,.72rem); color:rgba(255,255,255,.3);
+    letter-spacing:.1em; text-align:center; line-height:1.8; }
+  .tips b { color:rgba(0,245,255,.6); }
+</style>
+</head>
+<body>
+
+<div class="bg-grid"></div>
+<canvas id="canvas"></canvas>
+
+<!-- MENU -->
+<div id="title-screen" class="screen">
+  <div class="logo">WAVESURFER</div>
+  <div class="tagline">Ride the music</div>
+  <div class="upload-zone" id="upload-zone">
+    <input type="file" id="file-input" accept=".mp3,.ogg,.wav,.flac,.mid,.midi">
+    <div class="upload-icon">🎵</div>
+    <div class="upload-text"><b>Suelta tu canción aquí</b><br>
+      o <span>toca para explorar</span><br>
+      <small style="opacity:.6">MP3 · OGG · WAV · FLAC · MIDI</small></div>
+  </div>
+  <div class="analyzing-box" id="abox" style="display:none">
+    <h3>⚡ ANALIZANDO AUDIO</h3>
+    <div class="pbar"><div class="pfill" id="apfill"></div></div>
+    <div class="plabel" id="aplabel">Decodificando...</div>
+  </div>
+  <div class="tips"><b>←→</b> Mover nave &nbsp;|&nbsp; <b>SPACE</b> Pausa &nbsp;|&nbsp; Touch en bordes</div>
+  <span class="demo-link" id="demo-btn">🎮 Jugar con audio demo</span>
+</div>
+
+<!-- HUD -->
+<div id="hud">
+  <div class="hud-top">
+    <div><div class="hl">SCORE</div><div class="hud-score" id="h-score">0</div></div>
+    <div class="hud-ct"><div class="tname" id="h-track">—</div></div>
+    <div class="hmult"><div class="hl">MULT</div><div class="mval" id="h-mult">x1</div></div>
+  </div>
+  <div class="hud-bot">
+    <div class="prog-track"><div class="prog-fill" id="h-prog"></div></div>
+    <div class="hud-stats">
+      <div class="si"><div class="sv" id="h-combo">0</div><div class="sl">Combo</div></div>
+      <div class="si"><div class="sv" id="h-hits">0</div><div class="sl">Hits</div></div>
+      <div class="si"><div class="sv" id="h-miss">0</div><div class="sl">Perdidos</div></div>
+    </div>
+  </div>
+</div>
+
+<div class="tz" id="tz-l"><div class="tbtn" id="btn-l">◀</div></div>
+<div class="tz" id="tz-r"><div class="tbtn" id="btn-r">▶</div></div>
+<div id="combo-pop">COMBO!</div>
+<button id="pbtn">⏸</button>
+
+<div id="pause-ov">
+  <h2>PAUSA</h2>
+  <button class="btn btn-primary"   id="btn-resume">▶ CONTINUAR</button>
+  <button class="btn btn-secondary" id="btn-tomenu1">↩ MENÚ</button>
+</div>
+
+<div id="end-ov">
+  <h2>¡COMPLETADO!</h2>
+  <div class="er">
+    <div class="es"><div class="esv" id="e-score">0</div><div class="esl">Score</div></div>
+    <div class="es"><div class="esv" id="e-combo">0</div><div class="esl">Max Combo</div></div>
+    <div class="es"><div class="esv" id="e-acc">0%</div><div class="esl">Precisión</div></div>
+  </div>
+  <button class="btn btn-primary"   id="btn-again">🔄 OTRA VEZ</button>
+  <button class="btn btn-secondary" id="btn-tomenu2">← MENÚ</button>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+'use strict';
+/*
+  WAVESURFER v3 — Rewrite limpio
+
+  MODELO DEL MUNDO (simple):
+  - La nave está FIJA en Z=0 (SHIP_Z).
+  - Los bloques se crean en Z negativa (delante de la nave)
+    y cada frame se mueven +Z (hacia la cámara, hacia la nave).
+  - Las tiles del road hacen loop visible usando roadOffset.
+*/
+
+const G = id => document.getElementById(id);
+
+// ── CONSTANTES ────────────────────────────────────────────────
+const SPEED     = 26;     // unidades/segundo de los bloques
+const ROAD_W    = 12;
+const SEG       = 6;      // largo de cada tile del road
+const NSEGS     = 55;     // número de tiles en el pool
+const LANE_X    = [-3.8, 0, 3.8];
+const SHIP_Z    = 0;
+const HIT_Z     = 2.8;    // radio en Z para colisión
+const HIT_X     = 2.4;    // radio en X para colisión
+const MISS_Z    = 7;      // bloque "perdido" si pasa este Z
+const LOOK      = 7;      // segundos de lookahead para spawnear
+const COLORS    = [0xff3366,0x33ff99,0xffcc00,0x00ccff,0xff6600,0xcc33ff];
+
+// ── ESTADO MUTABLE ────────────────────────────────────────────
+let phase = 'menu';   // 'menu' | 'playing' | 'paused' | 'ended'
+let roadOff = 0;      // cuántos units ha viajado el road
+let beatIdx = 0;      // próximo beat a spawnear
+let score=0, combo=0, maxCombo=0, mult=1, hits=0, misses=0;
+let songDur=0, laneTarget=1, laneX=0;
+let beats=[];         // [{time,lane,colorIdx,pts,spawned}]
+let live=[];          // meshes activos en escena
+let parts=[];         // partículas
+let comboTid=null;
+
+// Audio
+let actx=null, srcNode=null, analyser=null;
+let audioStart=0, pauseAt=0;
+let savedBuf=null;   // AudioBuffer guardado para resume/replay
+
+// ── THREE.JS ─────────────────────────────────────────────────
+const canvas  = G('canvas');
+const renderer= new THREE.WebGLRenderer({canvas, antialias:true});
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.setClearColor(0x05050f);
+
+const scene = new THREE.Scene();
+scene.fog   = new THREE.FogExp2(0x05050f, 0.006);
+
+const cam = new THREE.PerspectiveCamera(68, 1, 0.1, 500);
+
+function resize(){
+  const w=innerWidth, h=innerHeight;
+  renderer.setSize(w,h);
+  cam.aspect=w/h;
+  cam.updateProjectionMatrix();
+}
+resize();
+addEventListener('resize', resize);
+addEventListener('orientationchange', ()=>setTimeout(resize,300));
+
+// Luces
+scene.add(new THREE.AmbientLight(0x111133, 2));
+const dlight = new THREE.DirectionalLight(0x00f5ff, 1.5);
+dlight.position.set(0,20,10); scene.add(dlight);
+const pl1=new THREE.PointLight(0xff00aa,4,70), pl2=new THREE.PointLight(0x00f5ff,4,70);
+pl1.position.set(-12,6,0); pl2.position.set(12,6,0);
+scene.add(pl1,pl2);
+
+// ── ROAD POOL ─────────────────────────────────────────────────
+const roadGeo  = new THREE.BoxGeometry(ROAD_W, 0.3, SEG);
+const stripGeo = new THREE.BoxGeometry(0.08, 0.36, SEG);
+const wallGeo  = new THREE.BoxGeometry(0.15, 1.6, SEG);
+const tiles=[], sL=[], sR=[], wL=[], wR=[];
+for(let i=0;i<NSEGS;i++){
+  const rm=new THREE.MeshPhongMaterial({
+    color:0x080820, emissive:new THREE.Color(0,0,0), shininess:60});
+  const r=new THREE.Mesh(roadGeo,rm); scene.add(r); tiles.push(r);
+
+  const sm=()=>new THREE.MeshBasicMaterial({color:0x00f5ff,transparent:true,opacity:.2});
+  const sl=new THREE.Mesh(stripGeo,sm()); scene.add(sl); sL.push(sl);
+  const sr=new THREE.Mesh(stripGeo,sm()); scene.add(sr); sR.push(sr);
+
+  const wm=()=>new THREE.MeshPhongMaterial({
+    color:0x00f5ff,emissive:new THREE.Color(0,0.13,0.2),transparent:true,opacity:.5});
+  const wl=new THREE.Mesh(wallGeo,wm()); scene.add(wl); wL.push(wl);
+  const wr=new THREE.Mesh(wallGeo,wm()); scene.add(wr); wR.push(wr);
+}
+const ROAD_START = -(NSEGS * SEG);  // inicio del ciclo: muy lejos al frente
+
+function drawRoad(dt, bass){
+  roadOff += SPEED * dt;
+  const range = NSEGS * SEG;
+  const pulse = bass * 0.45;
+  for(let i=0;i<NSEGS;i++){
+    // Cada tile tiene una posición que cicla entre ROAD_START y ROAD_START+range
+    const z = ROAD_START + ((roadOff + i*SEG) % range);
+    tiles[i].position.set(0, 0, z);
+    tiles[i].material.emissive.setRGB(0.03+pulse*.12, 0.03+pulse*.04, 0.1+pulse*.22);
+
+    const op=0.15+pulse*.5;
+    sL[i].position.set(-ROAD_W/2+3.9, 0.18, z);
+    sR[i].position.set( ROAD_W/2-3.9, 0.18, z);
+    sL[i].material.opacity=op; sR[i].material.opacity=op;
+
+    wL[i].position.set(-ROAD_W/2-.08, 0.8, z);
+    wR[i].position.set( ROAD_W/2+.08, 0.8, z);
+    const wi=0.2+pulse;
+    wL[i].material.emissiveIntensity=wi; wR[i].material.emissiveIntensity=wi;
+  }
+}
+
+// ── NAVE ──────────────────────────────────────────────────────
+const ship=new THREE.Group();
+ship.add(new THREE.Mesh(
+  new THREE.BoxGeometry(2.2,.45,3.2),
+  new THREE.MeshPhongMaterial({color:0xaaddff,emissive:0x003355,specular:0xffffff,shininess:200})));
+const wingM=new THREE.Mesh(new THREE.BoxGeometry(4.5,.12,1.8),
+  new THREE.MeshPhongMaterial({color:0x0088cc,emissive:0x001133,transparent:true,opacity:.85,shininess:150}));
+wingM.position.set(0,-.1,.3); ship.add(wingM);
+const cockM=new THREE.Mesh(new THREE.BoxGeometry(.9,.5,1.4),
+  new THREE.MeshPhongMaterial({color:0x88eeff,emissive:0x004466,transparent:true,opacity:.8,shininess:300}));
+cockM.position.set(0,.4,-.5); ship.add(cockM);
+for(const ex of [-.7,.7]){
+  const e=new THREE.Mesh(new THREE.BoxGeometry(.5,.3,.15),
+    new THREE.MeshBasicMaterial({color:0xff00aa}));
+  e.position.set(ex,-.08,1.65); ship.add(e);
+}
+const eLight=new THREE.PointLight(0xff44ff,4,9);
+eLight.position.set(0,0,2); ship.add(eLight);
+ship.position.set(0,1.2,SHIP_Z);
+scene.add(ship);
+
+// ── BLOCK POOL ────────────────────────────────────────────────
+const POOL=150;
+const bPool=[];
+const bGeo=new THREE.BoxGeometry(1.6,1.2,1.6);
+for(let i=0;i<POOL;i++){
+  const m=new THREE.Mesh(bGeo,
+    new THREE.MeshPhongMaterial({transparent:true,opacity:0,shininess:200}));
+  m.visible=false; scene.add(m); bPool.push(m);
+}
+function getFreeBlock(){ return bPool.find(b=>!b.visible)||bPool[0]; }
+
+// ── ESTRELLAS ─────────────────────────────────────────────────
+(()=>{
+  const N=1400, pos=new Float32Array(N*3);
+  for(let i=0;i<N;i++){
+    pos[i*3]=(Math.random()-.5)*600;
+    pos[i*3+1]=Math.random()*180+10;
+    pos[i*3+2]=(Math.random()-.5)*700;
+  }
+  const g=new THREE.BufferGeometry();
+  g.setAttribute('position',new THREE.BufferAttribute(pos,3));
+  scene.add(new THREE.Points(g,
+    new THREE.PointsMaterial({color:0xffffff,size:.5,transparent:true,opacity:.6})));
+})();
+
+// ── PARTÍCULAS ────────────────────────────────────────────────
+const pGeo=new THREE.BoxGeometry(.14,.14,.14);
+function burst(x,y,z,color){
+  for(let i=0;i<12;i++){
+    const m=new THREE.Mesh(pGeo,
+      new THREE.MeshBasicMaterial({color,transparent:true,opacity:1}));
+    m.position.set(x,y,z); scene.add(m);
+    parts.push({m,vx:(Math.random()-.5)*.55,vy:Math.random()*.45+.1,
+      vz:(Math.random()-.5)*.55,life:1});
+  }
+}
+function tickParts(dt){
+  for(let i=parts.length-1;i>=0;i--){
+    const p=parts[i]; p.life-=dt*2.8;
+    if(p.life<=0){scene.remove(p.m);parts.splice(i,1);continue;}
+    p.m.position.x+=p.vx; p.m.position.y+=p.vy; p.m.position.z+=p.vz;
+    p.vy-=dt*.6; p.m.material.opacity=p.life; p.m.scale.setScalar(p.life);
+  }
+}
+
+// ── HELPERS UI ────────────────────────────────────────────────
+const setP=(id,pct)=>{ G(id).style.width=(pct*100)+'%'; };
+const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+
+function setAnalyzeUI(show, label='', pct=0){
+  G('abox').style.display        = show ? '' : 'none';
+  G('upload-zone').style.display = show ? 'none' : '';
+  G('demo-btn').style.display    = show ? 'none' : '';
+  if(show){ G('aplabel').textContent=label; setP('apfill',pct); }
+}
+
+function showMenu(){
+  phase='menu';
+  G('hud').classList.remove('on');
+  G('pbtn').classList.remove('on');
+  G('tz-l').classList.remove('on');
+  G('tz-r').classList.remove('on');
+  G('pause-ov').classList.remove('on');
+  G('end-ov').classList.remove('on');
+  G('title-screen').classList.remove('hidden');
+  setAnalyzeUI(false);
+  G('file-input').value='';
+  setP('apfill',0);
+}
+
+function stopAudio(){
+  if(srcNode){ try{srcNode.stop();}catch(e){} srcNode=null; }
+  if(actx){ try{actx.close();}catch(e){} actx=null; }
+  analyser=null;
+}
+
+function clearBlocks(){
+  live.forEach(b=>{ b.visible=false; }); live=[];
+  parts.forEach(p=>scene.remove(p.m)); parts=[];
+}
+
+function toMenu(){
+  stopAudio(); clearBlocks(); showMenu();
+}
+
+// ── GAME START ────────────────────────────────────────────────
+function startGame(audioBuf, beatList, dur, name){
+  stopAudio(); clearBlocks();
+
+  // reset state
+  score=0; combo=0; maxCombo=0; mult=1; hits=0; misses=0;
+  songDur=dur; beats=beatList; laneTarget=1; laneX=0;
+  beatIdx=0; roadOff=0; savedBuf=audioBuf;
+  beats.forEach(b=>{ b.spawned=false; });
+  ship.position.set(0,1.2,SHIP_Z);
+
+  // audio
+  actx    = new (AudioContext||webkitAudioContext)();
+  analyser= actx.createAnalyser(); analyser.fftSize=64;
+  srcNode = actx.createBufferSource();
+  srcNode.buffer=audioBuf;
+  srcNode.connect(analyser); analyser.connect(actx.destination);
+  audioStart = actx.currentTime;
+  srcNode.start(0);
+  srcNode.onended = ()=>{ if(phase==='playing') endGame(); };
+
+  // ui
+  G('title-screen').classList.add('hidden');
+  G('hud').classList.add('on');
+  G('pbtn').classList.add('on');
+  G('tz-l').classList.add('on');
+  G('tz-r').classList.add('on');
+  G('pbtn').textContent='⏸';
+  G('h-track').textContent=name.substring(0,38);
+  updateHUD();
+  phase='playing';
+}
+
+function endGame(){
+  phase='ended';
+  const tot=hits+misses, acc=tot>0?Math.round(hits/tot*100):0;
+  G('e-score').textContent = score.toLocaleString();
+  G('e-combo').textContent = maxCombo;
+  G('e-acc').textContent   = acc+'%';
+  G('hud').classList.remove('on');
+  G('pbtn').classList.remove('on');
+  G('tz-l').classList.remove('on');
+  G('tz-r').classList.remove('on');
+  G('end-ov').classList.add('on');
+}
+
+// ── PAUSA ─────────────────────────────────────────────────────
+function pauseGame(){
+  if(phase!=='playing') return;
+  phase='paused';
+  pauseAt = actx.currentTime - audioStart;
+  try{srcNode.stop();}catch(e){}
+  G('pause-ov').classList.add('on');
+  G('pbtn').textContent='▶';
+}
+
+function resumeGame(){
+  if(phase!=='paused') return;
+  // Rebuild source from saved buffer at offset
+  srcNode = actx.createBufferSource();
+  srcNode.buffer = savedBuf;
+  srcNode.connect(analyser);
+  audioStart = actx.currentTime - pauseAt;
+  srcNode.start(0, pauseAt);
+  srcNode.onended = ()=>{ if(phase==='playing') endGame(); };
+  phase='playing';
+  G('pause-ov').classList.remove('on');
+  G('pbtn').textContent='⏸';
+}
+
+// ── HUD ───────────────────────────────────────────────────────
+function updateHUD(){
+  G('h-score').textContent = score.toLocaleString();
+  G('h-mult').textContent  = 'x'+mult;
+  G('h-combo').textContent = combo;
+  G('h-hits').textContent  = hits;
+  G('h-miss').textContent  = misses;
+  const ct = actx ? actx.currentTime - audioStart : 0;
+  const pct = songDur>0 ? Math.min(1, ct/songDur) : 0;
+  G('h-prog').style.width  = (pct*100)+'%';
+}
+
+function showCombo(txt){
+  const el=G('combo-pop');
+  el.textContent=txt; el.classList.add('on');
+  clearTimeout(comboTid);
+  comboTid=setTimeout(()=>el.classList.remove('on'), 1300);
+}
+function missFlash(){
+  const d=document.createElement('div');
+  d.style.cssText='position:fixed;inset:0;background:rgba(255,0,50,.18);pointer-events:none;z-index:400;';
+  document.body.appendChild(d); setTimeout(()=>d.remove(),350);
+}
+
+// ── SPAWN BLOCKS ──────────────────────────────────────────────
+function spawnBlocks(){
+  const ct = actx ? actx.currentTime - audioStart : 0;
+  while(beatIdx < beats.length){
+    const b=beats[beatIdx];
+    if(b.time > ct + LOOK) break;  // too far ahead
+    beatIdx++;
+    if(b.spawned) continue;
+    b.spawned=true;
+
+    const secsLeft = b.time - ct;           // tiempo hasta que debe llegar a la nave
+    // Si ya pasó (o casi), skip
+    if(secsLeft < -0.5) continue;
+    const spawnZ = -(secsLeft * SPEED);     // negativo = delante de la nave
+
+    const mesh=getFreeBlock();
+    mesh.material.color.setHex(COLORS[b.colorIdx]);
+    mesh.material.emissive.setHex(COLORS[b.colorIdx]);
+    mesh.material.emissiveIntensity=0.35;
+    mesh.material.opacity=0;
+    mesh.position.set(LANE_X[b.lane], 1.3, spawnZ);
+    mesh.rotation.set(0,0,0);
+    mesh.scale.set(1,1,1);
+    mesh.visible=true;
+    mesh.userData={lane:b.lane, pts:b.pts, alive:true};
+    live.push(mesh);
+  }
+}
+
+// ── NAVE Y BLOQUES ────────────────────────────────────────────
+function tickShip(dt){
+  // Slide de carril
+  const tx=LANE_X[laneTarget];
+  laneX += (tx-laneX) * (1-Math.pow(0.001, dt));
+
+  const ct = actx ? actx.currentTime-audioStart : 0;
+  const throb = Math.sin(ct*8)*.06;
+  const tilt  = (tx-laneX)*.13;
+  ship.position.set(laneX, 1.2+throb, SHIP_Z);
+  ship.rotation.set(.05, 0, -tilt);
+  eLight.intensity = 3+Math.sin(ct*14)*1.5;
+
+  // Mover bloques y detectar colisión
+  for(let i=live.length-1; i>=0; i--){
+    const b=live[i];
+    if(!b.visible||!b.userData.alive){ live.splice(i,1); continue; }
+
+    b.position.z += SPEED * dt;   // ← MOVIMIENTO CENTRAL
+    b.rotation.y += dt*2.2;
+    b.rotation.x += dt*1.4;
+
+    // Fade in según distancia
+    const ahead = -b.position.z;   // positivo mientras está delante de la nave
+    if(ahead > 50)      b.material.opacity=0;
+    else if(ahead > 20) b.material.opacity=(50-ahead)/30*.9;
+    else                b.material.opacity=0.9;
+
+    // Zona de colisión
+    if(b.position.z >= SHIP_Z-HIT_Z && b.position.z <= SHIP_Z+HIT_Z){
+      if(Math.abs(b.position.x - laneX) < HIT_X){
+        burst(b.position.x,b.position.y,b.position.z,b.material.color.getHex());
+        b.visible=false; b.userData.alive=false; live.splice(i,1);
+        combo++; hits++;
+        if(combo>maxCombo) maxCombo=combo;
+        mult=Math.min(8,1+Math.floor(combo/5));
+        score+=(b.userData.pts||100)*mult;
+        if(combo%10===0&&combo>0) showCombo(combo+'× COMBO!');
+        updateHUD(); continue;
+      }
+    }
+
+    // Zona de miss
+    if(b.position.z > SHIP_Z+MISS_Z){
+      b.visible=false; b.userData.alive=false; live.splice(i,1);
+      misses++; combo=0; mult=1;
+      missFlash(); updateHUD();
+    }
+  }
+}
+
+// ── CÁMARA ────────────────────────────────────────────────────
+let shk=0;
+function tickCam(dt, bass){
+  shk=shk*.85+bass*.1;
+  cam.position.set(laneX*.22+(Math.random()-.5)*shk*.3, 8.5+(Math.random()-.5)*shk*.15, SHIP_Z+19);
+  cam.lookAt(laneX*.1, .8, SHIP_Z-28);
+}
+function menuCam(t){
+  cam.position.set(Math.sin(t*.28)*2.5, 8.5, SHIP_Z+19);
+  cam.lookAt(0, .8, SHIP_Z-28);
+}
+
+// ── ANÁLISIS AUDIO ────────────────────────────────────────────
+async function analyzeAudio(arrayBuf, onProg){
+  const ctx=new (AudioContext||webkitAudioContext)();
+  onProg(.15,'Decodificando...');
+  const decoded=await ctx.decodeAudioData(arrayBuf);
+  try{ctx.close();}catch(e){}
+
+  onProg(.35,'Detectando beats...');
+  const ch=decoded.getChannelData(0), sr=decoded.sampleRate;
+  const fSize=1024, hop=512, nF=Math.floor((ch.length-fSize)/hop);
+  const energy=new Float32Array(nF);
+  for(let i=0;i<nF;i++){
+    let e=0; for(let j=0;j<fSize;j++){const s=ch[i*hop+j];e+=s*s;} energy[i]=e/fSize;
+  }
+  const maxE=Math.max(...energy)||1;
+  const norm=Array.from(energy).map(e=>e/maxE);
+  const WIN=43;
+  const beatList=[];
+  for(let i=WIN;i<norm.length-WIN;i++){
+    let avg=0; for(let j=i-WIN;j<i+WIN;j++)avg+=norm[j]; avg/=(2*WIN);
+    const thr=avg*1.55+.008;
+    if(norm[i]>thr&&norm[i]>norm[i-1]&&norm[i]>norm[i+1]){
+      const t=(i*hop)/sr;
+      if(!beatList.length||t-beatList[beatList.length-1].time>.12){
+        beatList.push({time:t,energy:norm[i]});
+      }
+    }
+  }
+
+  onProg(.9,'Generando carretera...');
+  const result=beatList.map((b,idx)=>({
+    time:b.time, lane:Math.abs(idx*7+Math.round(b.energy*3))%3,
+    colorIdx:Math.floor(b.energy*5.9)%COLORS.length,
+    pts:Math.round(100+b.energy*900), spawned:false
+  }));
+  onProg(1,'¡Listo!');
+  return {decoded, duration:decoded.duration, result};
+}
+
+// ── DEMO ──────────────────────────────────────────────────────
+function makeDemoBuf(){
+  const ctx=new (AudioContext||webkitAudioContext)();
+  const sr=ctx.sampleRate, dur=60, bi=60/128;
+  const buf=ctx.createBuffer(2,sr*dur,sr);
+  try{ctx.close();}catch(e){}
+  for(let c=0;c<2;c++){
+    const d=buf.getChannelData(c);
+    for(let i=0;i<d.length;i++){
+      const t=i/sr, ph=(t%bi)/bi;
+      const bass=Math.sin(Math.PI*2*80*t)*.38*Math.exp(-ph*9);
+      const fi=[440,550,660,880][Math.floor(t/bi)%4];
+      const lead=Math.sin(Math.PI*2*fi*t)*.12*Math.max(0,1-ph*4);
+      const hat=(Math.random()-.5)*.08*Math.exp(-ph*25)*(Math.floor(t/bi)%2?1:0);
+      const af=[523,659,784,1047][Math.floor((t%(bi))/(bi/4))%4];
+      const arp=Math.sin(Math.PI*2*af*t)*.09*Math.exp(-((t%(bi/4))/(bi/4))*6);
+      d[i]=Math.max(-1,Math.min(1,bass+lead+hat+arp));
+    }
+  }
+  return buf;
+}
+function makeDemoBeats(dur){
+  const bi=60/128; const list=[];
+  let t=bi/2, idx=0;
+  while(t<dur-1){
+    list.push({time:t,lane:idx%3,colorIdx:idx%COLORS.length,pts:150,spawned:false});
+    t+=bi; idx++;
+  }
+  return list;
+}
+
+// ── MIDI ──────────────────────────────────────────────────────
+function parseMidi(bytes){
+  const u32=i=>(bytes[i]<<24|bytes[i+1]<<16|bytes[i+2]<<8|bytes[i+3])>>>0;
+  const u16=i=>(bytes[i]<<8|bytes[i+1]);
+  if(u32(0)!==0x4d546864) return [];
+  const nT=u16(10), tpq=u16(12); let tempo=500000, off=14;
+  const notes=[];
+  for(let t=0;t<nT;t++){
+    if(off+8>bytes.length)break;
+    if(u32(off)!==0x4d54726b){off+=8+u32(off+4);continue;}
+    const te=off+8+u32(off+4); off+=8;
+    let tick=0,rs=0; const act={};
+    while(off<te){
+      let d=0;
+      while(off<te){const b=bytes[off++];d=(d<<7)|(b&0x7f);if(!(b&0x80))break;}
+      tick+=d; if(off>=te)break;
+      let st=bytes[off]; if(st<0x80){st=rs;}else{rs=st;off++;}
+      const type=st>>4; const spt=tempo/1e6/tpq;
+      if(type===0x9||type===0x8){
+        const pitch=bytes[off++],vel=bytes[off++],tm=tick*spt;
+        if(type===0x9&&vel>0){act[pitch]={pitch,tm,vel};}
+        else if(act[pitch]){
+          notes.push({...act[pitch],dur:Math.max(.05,tm-act[pitch].tm)});
+          delete act[pitch];
+        }
+      }else if(type===0xa||type===0xb||type===0xe){off+=2;}
+      else if(type===0xc||type===0xd){off+=1;}
+      else if(type===0xf){
+        if(st===0xff){
+          const mt=bytes[off++];let ml=0;
+          while(true){const b=bytes[off++];ml=(ml<<7)|(b&0x7f);if(!(b&0x80))break;}
+          if(mt===0x51&&ml===3)tempo=(bytes[off]<<16)|(bytes[off+1]<<8)|bytes[off+2];
+          off+=ml;
+        }else{while(off<te&&bytes[off++]!==0xf7){}}
+      }
+    }
+    off=te;
+  }
+  return notes.sort((a,b)=>a.tm-b.tm);
+}
+
+async function handleMidi(file,name){
+  setAnalyzeUI(true,'Procesando MIDI...',.1);
+  const ab=await file.arrayBuffer();
+  const notes=parseMidi(new Uint8Array(ab));
+  if(!notes.length){alert('MIDI sin notas detectables');showMenu();return;}
+  setAnalyzeUI(true,'Sintetizando audio...',.4);
+  const maxT=Math.max(...notes.map(n=>n.tm+n.dur));
+  const sr=44100;
+  const ctx2=new (AudioContext||webkitAudioContext)();
+  const buf=ctx2.createBuffer(2,Math.ceil((maxT+2)*sr),sr);
+  try{ctx2.close();}catch(e){}
+  for(let c=0;c<2;c++){
+    const d=buf.getChannelData(c);
+    for(const n of notes){
+      const f=440*Math.pow(2,(n.pitch-69)/12);
+      const ss=Math.floor(n.tm*sr);
+      const ds=Math.min(Math.floor(n.dur*sr),d.length-ss);
+      const amp=(n.vel/127)*.14;
+      for(let s=0;s<ds&&ss+s<d.length;s++){
+        const ti=s/sr,env=Math.exp(-ti*3)*Math.min(1,ti*25);
+        const w=Math.sin(Math.PI*2*f*ti)*.7+Math.sin(Math.PI*2*f*2*ti)*.15;
+        d[ss+s]=Math.max(-1,Math.min(1,d[ss+s]+w*env*amp));
+      }
+    }
+  }
+  setAnalyzeUI(true,'Generando carretera...',.85);
+  const bl=notes.filter((_,i)=>i%2===0).map((n,i)=>({
+    time:n.tm,lane:Math.abs(n.pitch*7)%3,
+    colorIdx:n.pitch%COLORS.length,pts:Math.round(100+(n.vel/127)*900),spawned:false}));
+  await sleep(300);
+  startGame(buf,bl,maxT+1,name);
+}
+
+// ── FILE HANDLER ──────────────────────────────────────────────
+async function handleFile(file){
+  const name=file.name.replace(/\.[^.]+$/,'');
+  if(/\.midi?$/i.test(file.name)){ await handleMidi(file,name); return; }
+  setAnalyzeUI(true,'Cargando...',.05);
+  try{
+    const ab=await file.arrayBuffer();
+    const {decoded,duration,result}=await analyzeAudio(ab,(p,lbl)=>{
+      G('apfill').style.width=(p*100)+'%'; G('aplabel').textContent=lbl;
+    });
+    await sleep(300);
+    startGame(decoded,result,duration,name);
+  }catch(err){
+    console.error(err); alert('Error: '+err.message); showMenu();
+  }
+}
+
+// ── INPUT ─────────────────────────────────────────────────────
+G('upload-zone').addEventListener('click',()=>G('file-input').click());
+G('upload-zone').addEventListener('dragover',e=>{e.preventDefault();G('upload-zone').classList.add('drag-over');});
+G('upload-zone').addEventListener('dragleave',()=>G('upload-zone').classList.remove('drag-over'));
+G('upload-zone').addEventListener('drop',e=>{
+  e.preventDefault(); G('upload-zone').classList.remove('drag-over');
+  if(e.dataTransfer.files[0]) handleFile(e.dataTransfer.files[0]);
+});
+G('file-input').addEventListener('change',e=>{ if(e.target.files[0]) handleFile(e.target.files[0]); });
+
+G('demo-btn').addEventListener('click',async()=>{
+  setAnalyzeUI(true,'Generando demo...',.3);
+  await sleep(60);
+  const buf=makeDemoBuf();
+  setAnalyzeUI(true,'Listo!',.95);
+  await sleep(300);
+  startGame(buf, makeDemoBeats(buf.duration), buf.duration, '⚡ Electronic Rush — Demo');
+});
+
+G('pbtn').addEventListener('click',()=>{ if(phase==='playing')pauseGame(); else if(phase==='paused')resumeGame(); });
+G('btn-resume').addEventListener('click',resumeGame);
+G('btn-tomenu1').addEventListener('click',toMenu);
+G('btn-tomenu2').addEventListener('click',toMenu);
+G('btn-again').addEventListener('click',toMenu);
+
+// Teclado
+addEventListener('keydown',e=>{
+  if(e.code==='ArrowLeft'||e.code==='KeyA'){if(phase==='playing')laneTarget=Math.max(0,laneTarget-1);}
+  if(e.code==='ArrowRight'||e.code==='KeyD'){if(phase==='playing')laneTarget=Math.min(2,laneTarget+1);}
+  if(e.code==='Space'){
+    e.preventDefault();
+    if(phase==='playing')pauseGame(); else if(phase==='paused')resumeGame();
+  }
+});
+
+// Swipe canvas
+let tx0=0,tt0=0;
+canvas.addEventListener('touchstart',e=>{e.preventDefault();tx0=e.touches[0].clientX;tt0=Date.now();},{passive:false});
+canvas.addEventListener('touchend',e=>{
+  e.preventDefault(); if(phase!=='playing')return;
+  const dx=e.changedTouches[0].clientX-tx0;
+  if(Date.now()-tt0<300&&Math.abs(dx)>28)
+    laneTarget=dx<0?Math.max(0,laneTarget-1):Math.min(2,laneTarget+1);
+},{passive:false});
+
+// Botones laterales
+function bindSide(id,dir){
+  const el=G(id);
+  const go=()=>{if(phase==='playing')laneTarget=Math.max(0,Math.min(2,laneTarget+dir));};
+  el.addEventListener('touchstart',e=>{e.preventDefault();el.classList.add('pr');go();},{passive:false});
+  el.addEventListener('touchend',  e=>{e.preventDefault();el.classList.remove('pr');},{passive:false});
+  el.addEventListener('mousedown', ()=>{el.classList.add('pr');go();});
+  el.addEventListener('mouseup',   ()=>el.classList.remove('pr'));
+}
+bindSide('btn-l',-1);
+bindSide('btn-r', 1);
+
+// ── GAME LOOP ─────────────────────────────────────────────────
+const freqBuf=new Uint8Array(32);
+let lastTS=0;
+
+(function loop(ts){
+  requestAnimationFrame(loop);
+  const dt=Math.min((ts-lastTS)/1000,.05); lastTS=ts;
+  const t=ts/1000;
+
+  // Bass energy
+  let bass=0;
+  if(analyser){ analyser.getByteFrequencyData(freqBuf); bass=(freqBuf[0]+freqBuf[1])/512; }
+
+  if(phase==='playing'){
+    spawnBlocks();
+    drawRoad(dt,bass);
+    tickShip(dt);
+    tickParts(dt);
+    tickCam(dt,bass);
+    pl1.position.x=Math.sin(t*.4)*15; pl2.position.x=Math.cos(t*.4)*15;
+    pl1.color.setHSL((t*.04)%1,1,.5);  pl2.color.setHSL((t*.04+.5)%1,1,.5);
+    updateHUD();
+  } else {
+    drawRoad(dt,0);
+    menuCam(t);
+    pl1.position.x=Math.sin(t*.35)*14; pl2.position.x=Math.cos(t*.35)*14;
+    pl1.color.setHSL((t*.035)%1,1,.5); pl2.color.setHSL((t*.035+.5)%1,1,.5);
+  }
+
+  renderer.render(scene,cam);
+})( 0 );
+
+console.log('%c🎵 WAVESURFER v3 OK','color:#00f5ff;font-size:18px;font-weight:bold');
+</script>
+</body>
+</html>
