@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no"/>
+<title>Entropy Garden</title>
+
+<style>
+html,body{
+  margin:0;
+  background:#05070a;
+  overflow:hidden;
+  font-family:system-ui,monospace;
+  color:#9fffe0;
+}
+
+canvas{ display:block; }
+
+.panel{
+  position:fixed;
+  top:12px;
+  left:12px;
+  background:rgba(10,20,25,.55);
+  backdrop-filter:blur(8px);
+  border:1px solid rgba(16,163,127,.3);
+  border-radius:14px;
+  padding:10px;
+  font-size:12px;
+}
+
+.btn{
+  background:#10a37f;
+  color:#001;
+  border:none;
+  border-radius:10px;
+  padding:6px 10px;
+  margin:3px;
+  font-weight:bold;
+}
+
+.hide{
+  position:fixed;
+  right:12px;
+  top:12px;
+  background:#10a37f;
+  border:none;
+  border-radius:50%;
+  width:42px;height:42px;
+  font-weight:bold;
+}
+</style>
+</head>
+
+<body>
+<canvas id="c"></canvas>
+
+<div class="panel" id="ui">
+  H <button class="btn" onclick="spawn('H',30)">+</button>
+  C <button class="btn" onclick="spawn('C',20)">+</button>
+  O <button class="btn" onclick="spawn('O',20)">+</button>
+  N <button class="btn" onclick="spawn('N',20)">+</button>
+  🔥 <button class="btn" onclick="heat(1.6)">+</button>
+  ❄️ <button class="btn" onclick="heat(0.6)">-</button>
+  💀 <button class="btn" onclick="reset()">reset</button>
+  <br/>
+  <span id="stats"></span>
+</div>
+
+<button class="hide" onclick="toggle()">≡</button>
+
+<script>
+const canvas = document.getElementById("c");
+const ctx = canvas.getContext("2d");
+resize();
+window.onresize = resize;
+
+function resize(){
+  canvas.width = innerWidth;
+  canvas.height = innerHeight;
+}
+
+const TYPES = {
+  H:{r:2, col:"#8cf", val:1},
+  C:{r:3, col:"#aaa", val:4},
+  O:{r:3, col:"#f66", val:2},
+  N:{r:3, col:"#9f9", val:3}
+};
+
+let atoms = [];
+let bonds = [];
+let temperature = 1;
+
+class Atom{
+  constructor(type,x,y){
+    this.type=type;
+    this.x=x; this.y=y;
+    this.vx=(Math.random()-0.5)*2;
+    this.vy=(Math.random()-0.5)*2;
+    this.bonds=0;
+  }
+}
+
+function spawn(t,n){
+  for(let i=0;i<n;i++){
+    atoms.push(new Atom(
+      t,
+      Math.random()*canvas.width,
+      Math.random()*canvas.height
+    ));
+  }
+}
+
+function heat(f){
+  temperature*=f;
+}
+
+function reset(){
+  atoms=[];
+  bonds=[];
+}
+
+function toggle(){
+  const ui=document.getElementById("ui");
+  ui.style.display = ui.style.display==="none"?"block":"none";
+}
+
+spawn("C",30);
+spawn("H",80);
+spawn("O",40);
+
+canvas.addEventListener("pointerdown", e=>{
+  for(let i=0;i<50;i++){
+    atoms.push(new Atom("H", e.clientX, e.clientY));
+  }
+  temperature*=1.3;
+});
+
+function dist2(a,b){
+  const dx=a.x-b.x;
+  const dy=a.y-b.y;
+  return dx*dx+dy*dy;
+}
+
+function update(){
+
+  temperature*=0.999; // enfriamiento natural
+
+  for(const a of atoms){
+
+    a.vx += (Math.random()-0.5)*0.4*temperature;
+    a.vy += (Math.random()-0.5)*0.4*temperature;
+
+    a.x+=a.vx;
+    a.y+=a.vy;
+
+    if(a.x<0||a.x>canvas.width) a.vx*=-1;
+    if(a.y<0||a.y>canvas.height) a.vy*=-1;
+  }
+
+  // enlaces probabilísticos (O(n) optimizado con vecinos cercanos simples)
+  bonds.length=0;
+
+  for(let i=0;i<atoms.length;i++){
+    for(let j=i+1;j<atoms.length;j++){
+
+      const A=atoms[i], B=atoms[j];
+      if(dist2(A,B) > 25) continue;
+
+      const chance = 0.06/temperature;
+
+      if(Math.random()<chance && A.bonds<TYPES[A.type].val && B.bonds<TYPES[B.type].val){
+        bonds.push([A,B]);
+        A.bonds++; B.bonds++;
+      }
+    }
+  }
+
+  for(const a of atoms) a.bonds=0;
+}
+
+function draw(){
+
+  ctx.fillStyle="rgba(5,7,10,.35)";
+  ctx.fillRect(0,0,canvas.width,canvas.height);
+
+  ctx.lineWidth=1;
+
+  for(const [a,b] of bonds){
+    ctx.strokeStyle="rgba(16,163,127,.3)";
+    ctx.beginPath();
+    ctx.moveTo(a.x,a.y);
+    ctx.lineTo(b.x,b.y);
+    ctx.stroke();
+  }
+
+  for(const a of atoms){
+    const t=TYPES[a.type];
+    ctx.fillStyle=t.col;
+    ctx.beginPath();
+    ctx.arc(a.x,a.y,t.r,0,6.28);
+    ctx.fill();
+  }
+
+  document.getElementById("stats").textContent =
+    `átomos:${atoms.length}  enlaces:${bonds.length}  temp:${temperature.toFixed(2)}`;
+}
+
+function loop(){
+  update();
+  draw();
+  requestAnimationFrame(loop);
+}
+
+loop();
+</script>
+</body>
+</html>
