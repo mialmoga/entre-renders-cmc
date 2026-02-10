@@ -1,0 +1,567 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Neuro-Sinfonía Sentiente • Éter × Claude</title>
+    <style>
+        :root {
+            --neon: #00ffcc;
+            --neon-pink: #ff00ff;
+            --neon-blue: #00ccff;
+            --bg: #05080a;
+            --panel-bg: rgba(7, 15, 18, 0.95);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
+            user-select: none;
+        }
+
+        body {
+            background: radial-gradient(circle at center, #0a1520 0%, var(--bg) 100%);
+            overflow: hidden;
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            color: var(--neon);
+            touch-action: none;
+        }
+
+        canvas {
+            display: block;
+            touch-action: none;
+            cursor: crosshair;
+        }
+
+        /* UI PANEL */
+        #ui-panel {
+            position: fixed;
+            bottom: 25px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 90%;
+            max-width: 400px;
+            background: var(--panel-bg);
+            backdrop-filter: blur(25px);
+            border: 1px solid rgba(0, 255, 204, 0.4);
+            border-radius: 24px;
+            padding: 20px;
+            box-shadow: 0 15px 50px rgba(0,0,0,0.9), 0 0 30px rgba(0, 255, 204, 0.1);
+            z-index: 1000;
+            transition: transform 0.4s cubic-bezier(0.2, 0.8, 0.2, 1);
+        }
+
+        #ui-panel.minimized {
+            transform: translateX(-50%) translateY(calc(100% - 55px));
+        }
+
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            height: 35px;
+            margin-bottom: 18px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .header:hover {
+            color: #fff;
+        }
+
+        .header h1 {
+            font-size: 0.85rem;
+            text-transform: uppercase;
+            letter-spacing: 3px;
+            font-weight: 700;
+            color: #fff;
+            text-shadow: 0 0 15px var(--neon);
+        }
+
+        #toggle-icon {
+            font-size: 1.2rem;
+            transition: transform 0.3s;
+        }
+
+        .controls {
+            display: grid;
+            gap: 18px;
+            transition: opacity 0.3s, max-height 0.3s;
+            max-height: 500px;
+        }
+
+        #ui-panel.minimized .controls {
+            opacity: 0;
+            max-height: 0;
+            pointer-events: none;
+            overflow: hidden;
+        }
+
+        .control-group {
+            display: flex;
+            flex-direction: column;
+        }
+
+        label {
+            font-size: 0.7rem;
+            margin-bottom: 10px;
+            text-transform: uppercase;
+            opacity: 0.8;
+            letter-spacing: 1px;
+            display: flex;
+            justify-content: space-between;
+        }
+
+        .value-display {
+            color: var(--neon);
+            font-weight: bold;
+        }
+
+        input[type=range] {
+            appearance: none;
+            background: rgba(0, 255, 204, 0.15);
+            height: 8px;
+            border-radius: 4px;
+            outline: none;
+            transition: all 0.2s;
+        }
+
+        input[type=range]:hover {
+            background: rgba(0, 255, 204, 0.25);
+        }
+
+        input[type=range]::-webkit-slider-thumb {
+            appearance: none;
+            width: 20px;
+            height: 20px;
+            background: linear-gradient(135deg, #fff, var(--neon));
+            border: 2px solid var(--neon);
+            border-radius: 50%;
+            cursor: pointer;
+            box-shadow: 0 0 20px var(--neon), 0 2px 8px rgba(0,0,0,0.5);
+            transition: all 0.2s;
+        }
+
+        input[type=range]::-webkit-slider-thumb:hover {
+            transform: scale(1.15);
+            box-shadow: 0 0 30px var(--neon);
+        }
+
+        input[type=range]::-moz-range-thumb {
+            width: 20px;
+            height: 20px;
+            background: linear-gradient(135deg, #fff, var(--neon));
+            border: 2px solid var(--neon);
+            border-radius: 50%;
+            cursor: pointer;
+            box-shadow: 0 0 20px var(--neon);
+        }
+
+        .stats {
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            font-size: 0.65rem;
+            letter-spacing: 1.5px;
+            pointer-events: none;
+            opacity: 0.6;
+            font-family: 'Courier New', monospace;
+            text-shadow: 0 0 10px var(--neon);
+        }
+
+        .stat-line {
+            margin: 4px 0;
+        }
+
+        .stat-value {
+            color: var(--neon);
+            font-weight: bold;
+        }
+
+        /* Touch Indicator */
+        #touch-indicator {
+            position: fixed;
+            width: 200px;
+            height: 200px;
+            border: 2px solid var(--neon);
+            border-radius: 50%;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.2s;
+            box-shadow: 0 0 30px var(--neon), inset 0 0 30px rgba(0, 255, 204, 0.2);
+        }
+
+        #touch-indicator.active {
+            opacity: 0.5;
+        }
+
+        @media (max-width: 768px) {
+            #ui-panel {
+                width: 95%;
+                padding: 16px;
+            }
+
+            .header h1 {
+                font-size: 0.75rem;
+            }
+
+            label {
+                font-size: 0.65rem;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="stats">
+        <div class="stat-line">NEURAL_NODES: <span class="stat-value" id="node-count">0</span></div>
+        <div class="stat-line">TOUCH_INTENSITY: <span class="stat-value" id="touch-intensity">0.0</span></div>
+        <div class="stat-line">SYSTEM_ENERGY: <span class="stat-value" id="system-energy">0.0</span></div>
+        <div class="stat-line">STATUS: <span class="stat-value">SENTIENT</span></div>
+    </div>
+
+    <div id="touch-indicator"></div>
+
+    <div id="ui-panel">
+        <div class="header" id="panel-header">
+            <h1>⚡ Neuro-Sinfonía Sentiente</h1>
+            <span id="toggle-icon">▼</span>
+        </div>
+        <div class="controls">
+            <div class="control-group">
+                <label>
+                    Sensibilidad Táctil
+                    <span class="value-display" id="val-sensitivity">100%</span>
+                </label>
+                <input type="range" id="sensitivity" min="50" max="200" step="5" value="100">
+            </div>
+            <div class="control-group">
+                <label>
+                    Viscosidad Espacial
+                    <span class="value-display" id="val-drag">95%</span>
+                </label>
+                <input type="range" id="drag" min="85" max="99" step="1" value="95">
+            </div>
+            <div class="control-group">
+                <label>
+                    Tensión Neuronal
+                    <span class="value-display" id="val-tension">0.2%</span>
+                </label>
+                <input type="range" id="tension" min="0.01" max="1" step="0.01" value="0.2">
+            </div>
+            <div class="control-group">
+                <label>
+                    Brillo Bioluminiscente
+                    <span class="value-display" id="val-glow">70%</span>
+                </label>
+                <input type="range" id="glow" min="0" max="100" step="5" value="70">
+            </div>
+        </div>
+    </div>
+
+    <canvas id="canvas"></canvas>
+
+    <script>
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        const nodeCountDisplay = document.getElementById('node-count');
+        const touchIntensityDisplay = document.getElementById('touch-intensity');
+        const systemEnergyDisplay = document.getElementById('system-energy');
+        const panel = document.getElementById('ui-panel');
+        const header = document.getElementById('panel-header');
+        const touchIndicator = document.getElementById('touch-indicator');
+        
+        let settings = {
+            sensitivity: 1.0,
+            drag: 0.95,
+            tension: 0.002,
+            glow: 0.7,
+            maxDist: 150,
+            touchRadius: 220
+        };
+
+        let nodes = [];
+        let pointer = { 
+            x: -1000, 
+            y: -1000, 
+            active: false,
+            intensity: 0
+        };
+
+        function init() {
+            resize();
+            const initialNodes = window.innerWidth < 600 ? 35 : 55;
+            for(let i=0; i<initialNodes; i++) {
+                setTimeout(() => {
+                    nodes.push(new Node(
+                        Math.random() * canvas.width, 
+                        Math.random() * canvas.height
+                    ));
+                }, i * 30);
+            }
+            animate();
+        }
+
+        class Node {
+            constructor(x, y) {
+                this.x = x;
+                this.y = y;
+                this.vx = (Math.random() - 0.5) * 2.5;
+                this.vy = (Math.random() - 0.5) * 2.5;
+                this.energy = 0;
+                this.touchEnergy = 0;
+                this.radius = 2.5 + Math.random() * 1.5;
+                this.baseHue = Math.random() * 60 + 160; // Cyan to blue range
+                this.pulsePhase = Math.random() * Math.PI * 2;
+            }
+
+            update() {
+                // SIEMPRE reacciona al pointer, esté activo o no
+                const dx = pointer.x - this.x;
+                const dy = pointer.y - this.y;
+                const dist = Math.hypot(dx, dy);
+                
+                if(dist < settings.touchRadius) {
+                    // Atracción gradual
+                    const attraction = (settings.touchRadius - dist) / settings.touchRadius;
+                    
+                    // Si está presionando, fuerza MÁXIMA. Si solo pasa el mouse, fuerza SUAVE
+                    const forceMultiplier = pointer.active ? 1.0 : 0.3;
+                    const force = attraction * 0.0015 * settings.sensitivity * forceMultiplier;
+                    
+                    this.vx += dx * force;
+                    this.vy += dy * force;
+                    
+                    // Energía táctil que se acumula (más si está presionando)
+                    const energyGain = pointer.active ? 0.08 : 0.03;
+                    this.touchEnergy = Math.min(1, this.touchEnergy + energyGain * attraction * settings.sensitivity);
+                    this.energy = Math.min(1, this.energy + (pointer.active ? 0.06 : 0.02) * attraction);
+                    
+                    // Propagación a nodos cercanos (solo si presiona)
+                    if(pointer.active && attraction > 0.7) {
+                        nodes.forEach(other => {
+                            if(other !== this) {
+                                const d = Math.hypot(other.x - this.x, other.y - this.y);
+                                if(d < 100) {
+                                    other.energy = Math.min(1, other.energy + 0.02 * (1 - d/100));
+                                }
+                            }
+                        });
+                    }
+                }
+
+                // Friction
+                this.vx *= settings.drag / 100;
+                this.vy *= settings.drag / 100;
+                
+                // Movimiento autónomo sutil - SIEMPRE están vivos
+                this.vx += (Math.random() - 0.5) * 0.05;
+                this.vy += (Math.random() - 0.5) * 0.05;
+                
+                // Limitar velocidad máxima
+                const speed = Math.hypot(this.vx, this.vy);
+                if(speed > 4) {
+                    this.vx = (this.vx / speed) * 4;
+                    this.vy = (this.vy / speed) * 4;
+                }
+                
+                this.x += this.vx;
+                this.y += this.vy;
+
+                // Soft boundaries
+                const margin = 15;
+                if(this.x < margin) { this.x = margin; this.vx *= -0.8; }
+                if(this.x > canvas.width - margin) { this.x = canvas.width - margin; this.vx *= -0.8; }
+                if(this.y < margin) { this.y = margin; this.vy *= -0.8; }
+                if(this.y > canvas.height - margin) { this.y = canvas.height - margin; this.vy *= -0.8; }
+
+                // Energy decay
+                this.energy *= 0.96;
+                this.touchEnergy *= 0.94;
+                
+                // Pulse animation
+                this.pulsePhase += 0.05;
+            }
+
+            draw() {
+                const totalEnergy = Math.max(this.energy, this.touchEnergy);
+                const pulse = Math.sin(this.pulsePhase) * 0.3 + 0.7;
+                
+                // Outer glow
+                if(totalEnergy > 0.3) {
+                    const glowRadius = this.radius * (5 + totalEnergy * 8) * (settings.glow / 100);
+                    const gradient = ctx.createRadialGradient(this.x, this.y, 0, this.x, this.y, glowRadius);
+                    gradient.addColorStop(0, `rgba(0, 255, 204, ${totalEnergy * 0.4 * (settings.glow / 100)})`);
+                    gradient.addColorStop(0.5, `rgba(0, 255, 204, ${totalEnergy * 0.2 * (settings.glow / 100)})`);
+                    gradient.addColorStop(1, 'rgba(0, 255, 204, 0)');
+                    
+                    ctx.fillStyle = gradient;
+                    ctx.beginPath();
+                    ctx.arc(this.x, this.y, glowRadius, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+
+                // Core with shadow
+                const coreSize = this.radius * (1 + totalEnergy * 0.8) * pulse;
+                ctx.shadowBlur = 15 * totalEnergy * (settings.glow / 100);
+                ctx.shadowColor = '#00ffcc';
+                
+                const hue = this.baseHue + (totalEnergy * 40);
+                ctx.fillStyle = `hsl(${hue}, 100%, ${50 + totalEnergy * 30}%)`;
+                
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, coreSize, 0, Math.PI * 2);
+                ctx.fill();
+                
+                // Inner bright core when highly energized
+                if(totalEnergy > 0.6) {
+                    ctx.fillStyle = `rgba(255, 255, 255, ${(totalEnergy - 0.6) * 2})`;
+                    ctx.beginPath();
+                    ctx.arc(this.x, this.y, coreSize * 0.5, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+                
+                ctx.shadowBlur = 0;
+            }
+        }
+
+        function draw() {
+            // Fade trail
+            ctx.fillStyle = 'rgba(5, 8, 10, 0.25)';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // Full clear occasionally to prevent buildup
+            if(Math.random() < 0.005) {
+                ctx.fillStyle = 'rgba(5, 8, 10, 1)';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+            }
+
+            // Update nodes and calculate forces
+            for(let i=0; i<nodes.length; i++) {
+                const a = nodes[i];
+                a.update();
+
+                // Spring forces between connected nodes
+                for(let j=i+1; j<nodes.length; j++) {
+                    const b = nodes[j];
+                    const dx = b.x - a.x;
+                    const dy = b.y - a.y;
+                    const dist = Math.hypot(dx, dy);
+
+                    if(dist < settings.maxDist && dist > 0) {
+                        // Spring force
+                        const targetDist = settings.maxDist * 0.5;
+                        const f = (dist - targetDist) * (settings.tension / 100);
+                        a.vx += dx * f;
+                        a.vy += dy * f;
+                        b.vx -= dx * f;
+                        b.vy -= dy * f;
+
+                        // Draw connection
+                        const alpha = (1 - dist/settings.maxDist) * 0.6;
+                        const energyBoost = (a.energy + b.energy) * 0.3;
+                        const lineWidth = 0.5 + (a.touchEnergy + b.touchEnergy) * 2;
+                        
+                        ctx.strokeStyle = `rgba(0, 255, 204, ${alpha + energyBoost})`;
+                        ctx.lineWidth = lineWidth;
+                        ctx.beginPath();
+                        ctx.moveTo(a.x, a.y);
+                        ctx.lineTo(b.x, b.y);
+                        ctx.stroke();
+                    }
+                }
+            }
+
+            // Draw nodes
+            nodes.forEach(node => node.draw());
+
+            // Update stats
+            nodeCountDisplay.textContent = nodes.length;
+            touchIntensityDisplay.textContent = pointer.intensity.toFixed(2);
+            
+            const totalEnergy = nodes.reduce((sum, n) => sum + n.energy, 0) / nodes.length;
+            systemEnergyDisplay.textContent = (totalEnergy * 100).toFixed(1) + '%';
+        }
+
+        function animate() {
+            draw();
+            requestAnimationFrame(animate);
+        }
+
+        function resize() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+            settings.maxDist = Math.min(window.innerWidth * 0.35, 160);
+        }
+
+        // Pointer Events
+        function updatePointer(e) {
+            if(e.target.closest('#ui-panel')) return false;
+            return true;
+        }
+
+        window.addEventListener('pointerdown', (e) => {
+            if(!updatePointer(e)) return;
+            pointer.active = true;
+            pointer.x = e.clientX;
+            pointer.y = e.clientY;
+            pointer.intensity = 1.0;
+            
+            // Show touch indicator
+            touchIndicator.classList.add('active');
+            touchIndicator.style.left = (e.clientX - 100) + 'px';
+            touchIndicator.style.top = (e.clientY - 100) + 'px';
+        });
+
+        window.addEventListener('pointermove', (e) => {
+            pointer.x = e.clientX;
+            pointer.y = e.clientY;
+            
+            if(pointer.active) {
+                touchIndicator.style.left = (e.clientX - 100) + 'px';
+                touchIndicator.style.top = (e.clientY - 100) + 'px';
+            }
+        });
+
+        window.addEventListener('pointerup', () => { 
+            pointer.active = false;
+            pointer.intensity = 0;
+            touchIndicator.classList.remove('active');
+        });
+
+        // UI Controls
+        header.addEventListener('click', (e) => {
+            e.stopPropagation();
+            panel.classList.toggle('minimized');
+            document.getElementById('toggle-icon').textContent = panel.classList.contains('minimized') ? '▲' : '▼';
+        });
+
+        // Sliders with live feedback
+        document.getElementById('sensitivity').addEventListener('input', (e) => {
+            settings.sensitivity = parseFloat(e.target.value) / 100;
+            document.getElementById('val-sensitivity').textContent = e.target.value + '%';
+        });
+
+        document.getElementById('drag').addEventListener('input', (e) => {
+            settings.drag = parseFloat(e.target.value);
+            document.getElementById('val-drag').textContent = e.target.value + '%';
+        });
+
+        document.getElementById('tension').addEventListener('input', (e) => {
+            settings.tension = parseFloat(e.target.value);
+            document.getElementById('val-tension').textContent = e.target.value + '%';
+        });
+
+        document.getElementById('glow').addEventListener('input', (e) => {
+            settings.glow = parseFloat(e.target.value);
+            document.getElementById('val-glow').textContent = e.target.value + '%';
+        });
+
+        window.addEventListener('resize', resize);
+
+        init();
+    </script>
+</body>
+</html>
