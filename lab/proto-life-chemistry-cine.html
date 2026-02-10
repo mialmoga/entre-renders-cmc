@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<style>
+html,body{margin:0;background:#05070a;overflow:hidden}
+canvas{display:block}
+.ui{
+position:fixed;top:10px;left:10px;
+background:rgba(0,0,0,.5);
+color:#9fffe0;font:12px monospace;
+padding:8px;border-radius:10px
+}
+button{margin:2px;background:#10a37f;border:none;border-radius:6px;padding:4px}
+</style>
+</head>
+<body>
+
+<canvas id="c"></canvas>
+<div class="ui">
+H<button onclick="spawn('H',50)">+</button>
+C<button onclick="spawn('C',30)">+</button>
+O<button onclick="spawn('O',30)">+</button>
+🔥<button onclick="temp*=1.5">+</button>
+❄️<button onclick="temp*=0.7">-</button>
+<span id="s"></span>
+</div>
+
+<script>
+const c=document.getElementById("c");
+const x=c.getContext("2d");
+c.width=innerWidth;c.height=innerHeight;
+
+let temp=1;
+
+const T={
+H:{r:2,c:"#9cf",g:0},
+C:{r:3,c:"#aaa",g:0},
+O:{r:3,c:"#f66",g:0},
+W:{r:4,c:"#4cf",g:6},
+M:{r:4,c:"#8f8",g:6},
+P:{r:5,c:"#fff",g:10}
+};
+
+let a=[];
+let fx=[];
+
+function spawn(t,n){
+for(let i=0;i<n;i++)
+a.push({t,x:Math.random()*c.width,y:Math.random()*c.height,
+vx:(Math.random()-.5)*2,vy:(Math.random()-.5)*2});
+}
+
+spawn("H",150);
+spawn("C",80);
+spawn("O",80);
+
+function d2(A,B){
+let dx=A.x-B.x,dy=A.y-B.y;
+return dx*dx+dy*dy;
+}
+
+function effect(x0,y0,color){
+for(let i=0;i<6;i++)
+fx.push({
+x:x0,y:y0,
+vx:(Math.random()-.5)*3,
+vy:(Math.random()-.5)*3,
+life:20,
+color
+});
+}
+
+function react(i,j){
+let A=a[i],B=a[j];
+
+if((A.t==="H"&&B.t==="O")||(A.t==="O"&&B.t==="H")){
+if(Math.random()<0.25){A.t="W";B.t="W";effect(A.x,A.y,"#4cf")}
+}
+
+if((A.t==="C"&&B.t==="H")||(A.t==="H"&&B.t==="C")){
+if(Math.random()<0.18){A.t="M";B.t="M";effect(A.x,A.y,"#8f8")}
+}
+
+if(A.t==="C"&&B.t==="C"){
+if(Math.random()<0.12){A.t="P";B.t="P";effect(A.x,A.y,"#fff")}
+}
+
+if(temp>1.8 && Math.random()<0.06){
+if(A.t!=="H"){A.t="H";effect(A.x,A.y,"#f66")}
+}
+}
+
+function loop(){
+
+x.fillStyle="rgba(5,7,10,.25)";
+x.fillRect(0,0,c.width,c.height);
+
+for(let i=0;i<a.length;i++){
+let A=a[i];
+
+A.vx+=(Math.random()-.5)*.2*temp;
+A.vy+=(Math.random()-.5)*.2*temp;
+
+A.x+=A.vx;A.y+=A.vy;
+
+if(A.x<0||A.x>c.width)A.vx*=-1;
+if(A.y<0||A.y>c.height)A.vy*=-1;
+
+for(let j=i+1;j<a.length;j++){
+if(d2(A,a[j])<25) react(i,j);
+}
+
+let t=T[A.t];
+
+x.shadowBlur=t.g;
+x.shadowColor=t.c;
+
+x.fillStyle=t.c;
+x.beginPath();
+x.arc(A.x,A.y,t.r,0,7);
+x.fill();
+}
+
+x.shadowBlur=0;
+
+for(let i=fx.length-1;i>=0;i--){
+let f=fx[i];
+f.x+=f.vx;
+f.y+=f.vy;
+f.life--;
+
+x.fillStyle=f.color;
+x.fillRect(f.x,f.y,2,2);
+
+if(f.life<=0) fx.splice(i,1);
+}
+
+temp*=0.999;
+
+document.getElementById("s").innerText=" temp:"+temp.toFixed(2);
+
+requestAnimationFrame(loop);
+}
+
+loop();
+</script>
+</body>
+</html>
