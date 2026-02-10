@@ -7,86 +7,87 @@
     <style>
         :root {
             --accent: #50d2d2;
-            --bg: #05050a;
-            --panel: #0a0a15;
+            --bg: #000;
             --sidebar-w: 280px;
+            --glitch: #ff00c1;
         }
 
-        /* Usamos 100svh para asegurar que quepa exactamente en el espacio visible */
-        body { 
-            margin: 0; display: flex; height: 100svh; width: 100vw;
-            background: var(--bg); color: var(--accent); 
-            font-family: 'Courier New', Courier, monospace; overflow: hidden;
+        html, body {
+            margin: 0; padding: 0; width: 100%; height: 100%;
+            overflow: hidden; background: var(--bg); position: fixed;
         }
 
-        /* --- BOTÓN FLOTANTE DERECHA --- */
+        /* --- VIEWPORT --- */
+        #viewport {
+            position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+            background: #000; z-index: 1;
+        }
+        iframe { width: 100%; height: 100%; border: none; display: block; }
+
+        /* --- BOTÓN MENÚ CIRCULAR CON GLITCH --- */
         #menu-toggle {
-            position: fixed; 
-            right: 15px; 
-            top: 50%; 
-            transform: translateY(-50%);
-            z-index: 1000; 
-            background: rgba(80, 210, 210, 0.8); 
-            color: #000;
-            border: none; 
-            width: 45px; 
-            height: 45px; 
-            border-radius: 50%;
-            font-size: 20px;
-            cursor: pointer;
-            backdrop-filter: blur(5px);
-            display: flex; align-items: center; justify-content: center;
-            box-shadow: 0 0 20px rgba(0,0,0,0.5);
+            position: fixed; right: 15px; top: 50%; transform: translateY(-50%);
+            z-index: 1000; background: var(--accent); color: #000;
+            border: none; width: 50px; height: 50px; border-radius: 50%;
+            font-size: 24px; cursor: pointer; display: flex; align-items: center; justify-content: center;
         }
 
-        /* --- BARRA LATERAL --- */
-        #sidebar { 
-            width: var(--sidebar-w); background: var(--panel); 
-            border-right: 1px solid rgba(80, 210, 210, 0.2);
-            display: flex; flex-direction: column; padding: 20px;
-            transition: transform 0.4s cubic-bezier(0.77, 0, 0.175, 1);
-            flex-shrink: 0; z-index: 999;
+        /* Animación Glitch para el icono */
+        #menu-toggle::before, #menu-toggle::after {
+            content: '☰'; position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            display: flex; align-items: center; justify-content: center; opacity: 0.8;
+        }
+        #menu-toggle::before { color: var(--glitch); z-index: -1; animation: glitch-anim 2s infinite; }
+        #menu-toggle::after { color: #00faff; z-index: -2; animation: glitch-anim 2s infinite reverse; }
+
+        @keyframes glitch-anim {
+            0% { transform: translate(0); }
+            20% { transform: translate(-2px, 2px); }
+            40% { transform: translate(2px, -2px); }
+            60% { transform: translate(-2px, -2px); }
+            80% { transform: translate(2px, 2px); }
+            100% { transform: translate(0); }
         }
 
-        @media (max-width: 768px) {
-            #sidebar { position: fixed; left: 0; top: 0; height: 100%; transform: translateX(-100%); }
-            #sidebar.open { transform: translateX(0); }
+        /* --- SIDEBAR --- */
+        #sidebar {
+            position: fixed; left: 0; top: 0; width: var(--sidebar-w); height: 100%;
+            background: rgba(5, 5, 10, 0.95); backdrop-filter: blur(15px);
+            border-right: 1px solid rgba(80, 210, 210, 0.3);
+            transform: translateX(-100%); transition: transform 0.3s ease;
+            z-index: 1100; padding: 20px; display: flex; flex-direction: column;
+        }
+        #sidebar.open { transform: translateX(0); }
+
+        /* Botón Fullscreen Superior */
+        .btn-fs {
+            background: var(--glitch); color: white; border: none; padding: 12px;
+            border-radius: 8px; font-family: monospace; font-weight: bold;
+            margin-bottom: 25px; cursor: pointer; letter-spacing: 2px;
+            box-shadow: 0 0 10px rgba(255, 0, 193, 0.4);
         }
 
-        /* --- VIEWPORT DEL IFRAME --- */
-        #viewport { 
-            flex-grow: 1; 
-            background: #000; 
-            position: relative;
-            height: 100%;
-        }
-        
-        iframe { 
-            width: 100%; 
-            height: 100%; 
-            border: none; 
-            display: block;
-        }
+        h2 { font-family: monospace; font-size: 0.9rem; color: var(--accent); text-align: center; letter-spacing: 5px; margin-bottom: 20px; }
 
-        /* Estilo de botones de experimento */
+        #lista-experimentos { flex-grow: 1; overflow-y: auto; padding-bottom: 80px; } /* ESPACIO VACÍO AL FINAL */
+
         .btn-exp {
-            display: block; width: 100%; padding: 12px;
-            margin-bottom: 10px; background: rgba(80, 210, 210, 0.05);
-            border: 1px solid rgba(80, 210, 210, 0.1); color: #ccc;
-            text-align: left; border-radius: 4px; cursor: pointer;
-            font-size: 0.8rem; letter-spacing: 1px;
+            display: block; width: 100%; padding: 15px; margin-bottom: 10px;
+            background: rgba(80, 210, 210, 0.05); border: 1px solid rgba(80, 210, 210, 0.2);
+            color: #fff; border-radius: 8px; text-align: left; font-size: 0.7rem;
+            text-transform: uppercase; cursor: pointer; transition: 0.2s;
         }
-        .btn-exp:hover { border-color: var(--accent); color: var(--accent); }
+        .btn-exp:active { background: var(--accent); color: #000; }
 
-        h2 { font-size: 0.9rem; letter-spacing: 4px; text-align: center; margin-bottom: 30px; opacity: 0.7; }
     </style>
 </head>
-<body onclick="requestFullScreen()">
+<body>
 
-    <button id="menu-toggle" onclick="toggleMenu(event)">☰</button>
+    <button id="menu-toggle" onclick="toggleMenu()">☰</button>
 
     <div id="sidebar">
-        <h2>CENTRAL DE DATOS</h2>
+        <button class="btn-fs" onclick="goFull()">FULLSCREEN</button>
+        <h2>CENTRAL</h2>
         <div id="lista-experimentos"></div>
     </div>
 
@@ -95,47 +96,47 @@
     </div>
 
     <script>
-        // Función para forzar pantalla completa al primer toque
-        function requestFullScreen() {
-            const doc = window.document;
-            const docEl = doc.documentElement;
-
-            const requestFullScreen = docEl.requestFullscreen || docEl.mozRequestFullScreen || docEl.webkitRequestFullScreen || docEl.msRequestFullscreen;
-
-            if(!doc.fullscreenElement && !doc.mozFullScreenElement && !doc.webkitFullscreenElement && !doc.msFullscreenElement) {
-                requestFullScreen.call(docEl);
-            }
+        function toggleMenu() {
+            document.getElementById('sidebar').classList.toggle('open');
         }
 
-        function toggleMenu(e) {
-            if(e) e.stopPropagation(); // Evita conflictos con el fullscreen
-            document.getElementById('sidebar').classList.toggle('open');
+        function goFull() {
+            const de = document.documentElement;
+            if (de.requestFullscreen) de.requestFullscreen();
+            else if (de.mozRequestFullScreen) de.mozRequestFullScreen();
+            else if (de.webkitRequestFullScreen) de.webkitRequestFullScreen();
+            else if (de.msRequestFullscreen) de.msRequestFullscreen();
+            toggleMenu(); // Cerrar menú tras activar
+        }
+
+        function adjustHeight() {
+            document.getElementById('viewport').style.height = window.innerHeight + 'px';
         }
 
         async function cargarExperimentos() {
             const lista = document.getElementById('lista-experimentos');
             const visor = document.getElementById('visor');
             try {
-                const response = await fetch('experimentos.json');
-                const data = await response.json();
+                const res = await fetch('experimentos.json');
+                const data = await res.json();
                 lista.innerHTML = "";
-                data.proyectos.forEach(proy => {
+                data.proyectos.forEach((proy, i) => {
                     const btn = document.createElement('button');
                     btn.className = 'btn-exp';
                     btn.innerText = proy.nombre;
-                    btn.onclick = (e) => {
-                        e.stopPropagation();
+                    btn.onclick = () => {
                         visor.src = proy.archivo;
-                        if (window.innerWidth <= 768) toggleMenu();
+                        toggleMenu();
                     };
                     lista.appendChild(btn);
+                    if(i === 0) visor.src = proy.archivo;
                 });
-            } catch (e) {
-                lista.innerHTML = "<p>Error al cargar JSON</p>";
-            }
+            } catch (e) { console.error(e); }
         }
 
-        window.onload = cargarExperimentos;
+        window.addEventListener('resize', adjustHeight);
+        adjustHeight();
+        cargarExperimentos();
     </script>
 </body>
 </html>
