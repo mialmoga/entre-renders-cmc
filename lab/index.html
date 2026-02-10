@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>LABORATORIO | BRUJO EDITION</title>
+    <title>LABORATORIO | BRUJO</title>
     <style>
         :root {
             --accent: #50d2d2;
@@ -13,38 +13,42 @@
             --glitch-color: #ff00c1;
         }
 
-        * { box-sizing: border-box; }
-
         body { 
             margin: 0; display: flex; height: 100vh; 
             background: var(--bg); color: var(--accent); 
             font-family: 'Courier New', Courier, monospace; overflow: hidden;
         }
 
-        /* --- BOTÓN GLITCH --- */
+        /* --- BOTÓN FLOTANTE DERECHA --- */
         #menu-toggle {
-            display: none; position: fixed; top: 15px; left: 15px;
-            z-index: 100; background: var(--accent); color: #000;
-            border: none; padding: 12px 20px; font-weight: bold;
-            letter-spacing: 2px; cursor: pointer;
-            box-shadow: 0 0 15px var(--accent);
+            display: none; /* Se activa en móvil */
+            position: fixed; 
+            right: 15px; /* Lado derecho */
+            top: 50%; /* Centrado vertical */
+            transform: translateY(-50%);
+            z-index: 1000; 
+            background: var(--accent); 
+            color: #000;
+            border: none; 
+            width: 50px; 
+            height: 50px; 
+            border-radius: 50%; /* Circular */
+            font-size: 24px;
+            cursor: pointer;
+            box-shadow: 0 0 15px rgba(80, 210, 210, 0.5);
+            display: flex; align-items: center; justify-content: center;
         }
 
         @media (max-width: 768px) {
-            #menu-toggle { display: block; }
-            #menu-toggle::before, #menu-toggle::after {
-                content: '☰ MENU'; position: absolute; top: 0; left: 0; 
-                width: 100%; height: 100%; background: var(--accent);
-                display: flex; align-items: center; justify-content: center; opacity: 0.8;
-            }
-            #menu-toggle::before {
-                left: 3px; text-shadow: -2px 0 var(--glitch-color);
-                clip: rect(44px, 450px, 56px, 0);
-                animation: glitch-anim 5s infinite linear alternate-reverse;
-            }
+            #menu-toggle { display: flex; }
+            
+            /* Efecto Glitch sutil solo en el icono */
             #menu-toggle::after {
-                left: -3px; text-shadow: -2px 0 #00fff9, 2px 2px var(--glitch-color);
-                animation: glitch-anim2 1s infinite linear alternate-reverse;
+                content: '☰'; position: absolute;
+                top: 0; left: 0; width: 100%; height: 100%;
+                display: flex; align-items: center; justify-content: center;
+                animation: glitch-icon 3s infinite linear;
+                opacity: 0.5;
             }
         }
 
@@ -54,62 +58,38 @@
             border-right: 1px solid rgba(80, 210, 210, 0.2);
             display: flex; flex-direction: column; padding: 20px;
             transition: transform 0.4s cubic-bezier(0.77, 0, 0.175, 1);
-            flex-shrink: 0; z-index: 90;
+            flex-shrink: 0; z-index: 999;
         }
 
-        h2 { 
-            font-size: 1.1rem; letter-spacing: 3px; text-align: center;
-            margin: 20px 0; text-shadow: 0 0 10px var(--accent);
+        @media (max-width: 768px) {
+            #sidebar { 
+                position: fixed; left: 0; top: 0; height: 100%; 
+                transform: translateX(-100%); 
+            }
+            #sidebar.open { transform: translateX(0); }
         }
 
-        #lista-experimentos { flex-grow: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; }
-
+        /* --- RESTO DEL ESTILO --- */
+        h2 { font-size: 1.1rem; letter-spacing: 3px; text-align: center; margin: 20px 0; }
+        #lista-experimentos { flex-grow: 1; overflow-y: auto; }
         .btn-exp {
             display: block; width: 100%; min-height: 50px; padding: 10px;
             margin-bottom: 12px; background: rgba(80, 210, 210, 0.05);
             border: 1px solid rgba(80, 210, 210, 0.2); color: #888;
-            text-align: left; border-radius: 4px; cursor: pointer;
-            transition: all 0.2s; text-transform: uppercase; font-size: 0.75rem;
+            text-align: left; border-radius: 8px; cursor: pointer;
+            text-transform: uppercase; font-size: 0.75rem;
         }
+        .btn-exp:active { background: var(--accent); color: #000; }
 
-        .btn-exp:hover, .btn-exp:active {
-            background: var(--accent); color: #000;
-            box-shadow: 0 0 20px var(--accent);
-            transform: translateX(5px);
-            animation: shake 0.2s infinite;
-        }
-
-        /* --- VIEWPORT --- */
         #viewport { flex-grow: 1; background: #000; position: relative; }
-        iframe { width: 100%; height: 100%; border: none; background: #000; }
+        iframe { width: 100%; height: 100%; border: none; }
 
-        /* --- RESPONSIVO --- */
-        @media (max-width: 768px) {
-            #sidebar { position: fixed; left: 0; top: 0; height: 100%; transform: translateX(-100%); }
-            #sidebar.open { transform: translateX(0); }
-            #viewport { width: 100vw; }
+        @keyframes glitch-icon {
+            0% { transform: translate(0); text-shadow: 2px 0 red; }
+            2% { transform: translate(-2px, 2px); text-shadow: -2px 0 blue; }
+            4% { transform: translate(0); }
+            100% { transform: translate(0); }
         }
-
-        /* --- ANIMACIONES --- */
-        @keyframes glitch-anim {
-            0% { clip: rect(31px, 9999px, 94px, 0); }
-            20% { clip: rect(2px, 9999px, 23px, 0); }
-            60% { clip: rect(67px, 9999px, 62px, 0); }
-            100% { clip: rect(10px, 9999px, 80px, 0); }
-        }
-        @keyframes glitch-anim2 {
-            0% { clip: rect(65px, 9999px, 100px, 0); transform: skew(0.3deg); }
-            50% { clip: rect(40px, 9999px, 60px, 0); transform: skew(-1deg); }
-            100% { clip: rect(80px, 9999px, 10px, 0); transform: skew(0.1deg); }
-        }
-        @keyframes shake {
-            0% { transform: translate(0,0) }
-            50% { transform: translate(2px, -1px) }
-            100% { transform: translate(-1px, 1px) }
-        }
-
-        ::-webkit-scrollbar { width: 4px; }
-        ::-webkit-scrollbar-thumb { background: var(--accent); }
     </style>
 </head>
 <body>
@@ -118,8 +98,7 @@
 
     <div id="sidebar">
         <h2>LABORATORIO</h2>
-        <div id="lista-experimentos">
-            </div>
+        <div id="lista-experimentos"></div>
     </div>
 
     <div id="viewport">
@@ -134,12 +113,10 @@
         async function cargarExperimentos() {
             const lista = document.getElementById('lista-experimentos');
             const visor = document.getElementById('visor');
-
             try {
                 const response = await fetch('experimentos.json');
                 const data = await response.json();
-                lista.innerHTML = ""; // Limpiar mensaje de carga
-
+                lista.innerHTML = "";
                 data.proyectos.forEach(proy => {
                     const btn = document.createElement('button');
                     btn.className = 'btn-exp';
@@ -151,10 +128,9 @@
                     lista.appendChild(btn);
                 });
             } catch (e) {
-                lista.innerHTML = "<p style='color:red'>Grimorio no encontrado (JSON).</p>";
+                lista.innerHTML = "<p>Error JSON</p>";
             }
         }
-
         window.onload = cargarExperimentos;
     </script>
 </body>
