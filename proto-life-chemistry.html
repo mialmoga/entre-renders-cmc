@@ -2,267 +2,232 @@
 <html lang="es">
 <head>
 <meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no"/>
-title>Proto-Life Chemistry</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Proto-Life Chemistry</title>
 <style>
-html,body{
-  margin:0;
-  background:#050507;
-  overflow:hidden;
-  font-family:system-ui;
-  touch-action:none;
-}
+  html,body{
+    margin:0;
+    background:#000;
+    overflow:hidden;
+    touch-action:none;
+    font-family:system-ui;
+  }
 
-canvas{ display:block; }
+  canvas{display:block}
 
-.panel{
-  position:fixed;
-  top:10px;
-  left:10px;
-  background:#0b0f12cc;
-  backdrop-filter: blur(6px);
-  padding:10px;
-  border-radius:14px;
-  color:#9fffd6;
-  font-size:12px;
-}
+  #ui{
+    position:fixed;
+    top:10px;
+    left:10px;
+    background:#000c;
+    backdrop-filter: blur(6px);
+    padding:10px 14px;
+    border-radius:14px;
+    color:#10a37f;
+    font-size:13px;
+  }
 
-button{
-  margin:2px;
-  background:#10a37f;
-  border:none;
-  color:white;
-  padding:4px 8px;
-  border-radius:8px;
-}
+  button{
+    background:#10a37f22;
+    border:1px solid #10a37f55;
+    color:#10a37f;
+    border-radius:8px;
+    padding:4px 8px;
+    margin-right:4px;
+  }
 </style>
 </head>
-
 <body>
 <canvas id="c"></canvas>
 
-<div class="panel">
-⚗️ Proto-Life<br>
-<button onclick="spawnAtoms()">+ átomos</button>
-<button onclick="spawnCells()">+ células</button>
-<button onclick="heatPulse()">🔥 calor</button>
-<button onclick="toggleUI()">👁️</button>
-<div id="stats"></div>
+<div id="ui">
+  🧬 atoms: <span id="count">0</span><br/>
+  <button onclick="spawn(50)">+50</button>
+  <button onclick="spawn(200)">+200</button>
+  <button onclick="reset()">reset</button>
 </div>
 
 <script>
 const canvas = document.getElementById("c")
 const ctx = canvas.getContext("2d")
+const countEl = document.getElementById("count")
 
-let W,H
 function resize(){
-  W = canvas.width = innerWidth
-  H = canvas.height = innerHeight
+  canvas.width = innerWidth
+  canvas.height = innerHeight
 }
 resize()
-onresize = resize
+addEventListener("resize", resize)
 
-// =========================
-// ENTIDADES
-// =========================
 
-const atoms=[]
-const bonds=[]
-const cells=[]
+// -------------------------------
+// config
+// -------------------------------
+
+const CELL = 40      // grid size
+const BOND_DIST = 18
+const MAX_SPEED = 1.5
+
+let atoms = []
+let grid = {}
+
+
+// -------------------------------
+// atom class
+// -------------------------------
 
 class Atom{
-  constructor(type,x,y){
-    this.type=type
-    this.x=x
-    this.y=y
-    this.vx=(Math.random()-0.5)*0.8
-    this.vy=(Math.random()-0.5)*0.8
-  }
-}
-
-class Bond{
-  constructor(a,b){
-    this.a=a
-    this.b=b
-  }
-}
-
-class Cell{
   constructor(x,y){
     this.x=x
     this.y=y
-    this.energy=40
+    this.vx=(Math.random()-0.5)
+    this.vy=(Math.random()-0.5)
+    this.bonds=[]
+  }
+
+  update(){
+    this.x+=this.vx
+    this.y+=this.vy
+
+    this.vx*=0.99
+    this.vy*=0.99
+
+    // bounds
+    if(this.x<0||this.x>canvas.width) this.vx*=-1
+    if(this.y<0||this.y>canvas.height) this.vy*=-1
+
+    // speed clamp
+    const s=Math.hypot(this.vx,this.vy)
+    if(s>MAX_SPEED){
+      this.vx*=MAX_SPEED/s
+      this.vy*=MAX_SPEED/s
+    }
+  }
+
+  draw(){
+    ctx.fillStyle="#10a37f"
+    ctx.beginPath()
+    ctx.arc(this.x,this.y,3,0,Math.PI*2)
+    ctx.fill()
+
+    // bonds
+    ctx.strokeStyle="#10a37f33"
+    for(const b of this.bonds){
+      ctx.beginPath()
+      ctx.moveTo(this.x,this.y)
+      ctx.lineTo(b.x,b.y)
+      ctx.stroke()
+    }
   }
 }
 
-// =========================
-// SPAWN
-// =========================
 
-function spawnAtoms(n=80){
-  const types=["H","O","C"]
+// -------------------------------
+// grid helpers (O(1) neighborhood)
+// -------------------------------
+
+function buildGrid(){
+  grid={}
+  for(const a of atoms){
+    const gx=(a.x/CELL)|0
+    const gy=(a.y/CELL)|0
+    const k=gx+","+gy
+    if(!grid[k]) grid[k]=[]
+    grid[k].push(a)
+  }
+}
+
+function neighbors(a){
+  const gx=(a.x/CELL)|0
+  const gy=(a.y/CELL)|0
+  let list=[]
+
+  for(let x=-1;x<=1;x++)
+    for(let y=-1;y<=1;y++){
+      const k=(gx+x)+","+(gy+y)
+      if(grid[k]) list.push(...grid[k])
+    }
+
+  return list
+}
+
+
+// -------------------------------
+// bonding physics
+// -------------------------------
+
+function tryBond(a,b){
+  if(a.bonds.includes(b)) return
+
+  const dx=b.x-a.x
+  const dy=b.y-a.y
+  const d=Math.hypot(dx,dy)
+
+  if(d<BOND_DIST && a.bonds.length<3 && b.bonds.length<3){
+    a.bonds.push(b)
+    b.bonds.push(a)
+  }
+}
+
+
+// -------------------------------
+// simulation
+// -------------------------------
+
+function step(){
+  ctx.fillStyle="#00000022"
+  ctx.fillRect(0,0,canvas.width,canvas.height)
+
+  buildGrid()
+
+  // bond phase
+  for(const a of atoms){
+    for(const b of neighbors(a)){
+      if(a!==b) tryBond(a,b)
+    }
+  }
+
+  // update + draw
+  for(const a of atoms){
+    a.update()
+    a.draw()
+  }
+
+  countEl.textContent = atoms.length
+
+  requestAnimationFrame(step)
+}
+
+
+// -------------------------------
+// spawn / controls
+// -------------------------------
+
+function spawn(n){
   for(let i=0;i<n;i++){
     atoms.push(new Atom(
-      types[Math.floor(Math.random()*3)],
-      Math.random()*W,
-      Math.random()*H
+      Math.random()*canvas.width,
+      Math.random()*canvas.height
     ))
   }
 }
 
-function spawnCells(n=5){
-  for(let i=0;i<n;i++){
-    cells.push(new Cell(Math.random()*W,Math.random()*H))
-  }
+function reset(){
+  atoms=[]
 }
 
-function heatPulse(){
-  for(const a of atoms){
-    a.vx+=(Math.random()-0.5)*4
-    a.vy+=(Math.random()-0.5)*4
-  }
-}
 
-// =========================
-// FÍSICA SIMPLE
-// =========================
-
-function dist(a,b){
-  return Math.hypot(a.x-b.x,a.y-b.y)
-}
-
-function tryBond(a,b){
-  if(dist(a,b)<14 && Math.random()<0.02){
-    bonds.push(new Bond(a,b))
-  }
-}
-
-function updateAtoms(){
-
-  for(const a of atoms){
-
-    a.x+=a.vx
-    a.y+=a.vy
-
-    a.vx*=0.99
-    a.vy*=0.99
-
-    if(a.x<0||a.x>W) a.vx*=-1
-    if(a.y<0||a.y>H) a.vy*=-1
-  }
-
-  // intentar enlaces locales
-  for(let i=0;i<atoms.length;i++){
-    for(let j=i+1;j<i+10 && j<atoms.length;j++){
-      tryBond(atoms[i],atoms[j])
-    }
-  }
-}
-
-// =========================
-// CÉLULAS
-// =========================
-
-function updateCells(){
-
-  for(const c of cells){
-
-    // moverse random
-    c.x+=(Math.random()-0.5)*2
-    c.y+=(Math.random()-0.5)*2
-
-    c.energy-=0.02
-
-    // comer moléculas grandes
-    for(const b of bonds){
-      const mx=(b.a.x+b.b.x)/2
-      const my=(b.a.y+b.b.y)/2
-
-      if(Math.hypot(mx-c.x,my-c.y)<10){
-        c.energy+=8
-      }
-    }
-
-    // reproducción
-    if(c.energy>100){
-      c.energy*=0.5
-      cells.push(new Cell(c.x,c.y))
-    }
-  }
-}
-
-// =========================
-// RENDER
-// =========================
-
-function draw(){
-
-  ctx.fillStyle="rgba(5,5,7,0.2)"
-  ctx.fillRect(0,0,W,H)
-
-  // enlaces
-  ctx.strokeStyle="#10a37f33"
-  for(const b of bonds){
-    ctx.beginPath()
-    ctx.moveTo(b.a.x,b.a.y)
-    ctx.lineTo(b.b.x,b.b.y)
-    ctx.stroke()
-  }
-
-  // átomos
-  for(const a of atoms){
-    ctx.beginPath()
-
-    const color={
-      H:"#aaa",
-      O:"#5ccfff",
-      C:"#111"
-    }[a.type]
-
-    ctx.fillStyle=color
-    ctx.arc(a.x,a.y,3,0,6.28)
-    ctx.fill()
-  }
-
-  // células
-  for(const c of cells){
-    ctx.beginPath()
-    ctx.fillStyle="#10ff9a"
-    ctx.arc(c.x,c.y,6,0,6.28)
-    ctx.fill()
-  }
-
-  stats.textContent=
-    `átomos ${atoms.length} | enlaces ${bonds.length} | células ${cells.length}`
-}
-
-// =========================
-// LOOP
-// =========================
-
-function loop(){
-  updateAtoms()
-  updateCells()
-  draw()
-  requestAnimationFrame(loop)
-}
-loop()
-
-// touch → energía local
-canvas.addEventListener("pointermove",e=>{
-  for(const a of atoms){
-    const d=Math.hypot(a.x-e.clientX,a.y-e.clientY)
-    if(d<60){
-      a.vx+=(a.x-e.clientX)*0.02
-      a.vy+=(a.y-e.clientY)*0.02
-    }
+// touch spawn
+canvas.addEventListener("pointerdown", e=>{
+  for(let i=0;i<20;i++){
+    atoms.push(new Atom(e.clientX,e.clientY))
   }
 })
 
-function toggleUI(){
-  document.querySelector(".panel").style.display =
-    document.querySelector(".panel").style.display==="none"?"block":"none"
-}
+
+// start
+spawn(120)
+step()
 </script>
 </body>
 </html>
