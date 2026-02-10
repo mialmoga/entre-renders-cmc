@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Tidal Ecosystem — Velvet</title>
+<style>
+html,body{
+  margin:0;
+  background:#050505;
+  overflow:hidden;
+  touch-action:none;
+  font-family:system-ui;
+}
+#ui{
+  position:fixed;
+  top:10px;
+  left:10px;
+  background:rgba(0,0,0,.5);
+  color:#10a37f;
+  padding:10px 14px;
+  border-radius:12px;
+  font-size:12px;
+}
+button{
+  background:#10a37f;
+  color:#000;
+  border:none;
+  padding:4px 8px;
+  border-radius:6px;
+  cursor:pointer;
+}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+
+<div id="ui">
+🌊 Tidal Ecosystem<br>
+Plancton: <span id="p">0</span> |
+Peces: <span id="f">0</span><br>
+<button id="toggle">👁️</button>
+</div>
+
+<script>
+const canvas = document.getElementById("c");
+const ctx = canvas.getContext("2d");
+resize();
+window.onresize = resize;
+
+function resize(){
+  canvas.width = innerWidth;
+  canvas.height = innerHeight;
+}
+
+const plankton = [];
+const fish = [];
+const currents = [];
+
+class Vec{
+  constructor(x,y){this.x=x;this.y=y;}
+  add(v){this.x+=v.x;this.y+=v.y;}
+  mul(n){this.x*=n;this.y*=n;}
+}
+
+function rand(a,b){ return Math.random()*(b-a)+a; }
+
+class Plankton{
+  constructor(){
+    this.pos=new Vec(rand(0,canvas.width),rand(0,canvas.height));
+    this.vel=new Vec(rand(-.2,.2),rand(-.2,.2));
+  }
+  update(){
+    this.pos.add(this.vel);
+  }
+  draw(){
+    ctx.fillStyle="#10a37f";
+    ctx.fillRect(this.pos.x,this.pos.y,2,2);
+  }
+}
+
+class Fish{
+  constructor(){
+    this.pos=new Vec(rand(0,canvas.width),rand(0,canvas.height));
+    this.vel=new Vec(0,0);
+    this.energy=200;
+  }
+  update(){
+    let target=null;
+    let best=9999;
+
+    for(let p of plankton){
+      let dx=p.pos.x-this.pos.x;
+      let dy=p.pos.y-this.pos.y;
+      let d=dx*dx+dy*dy;
+      if(d<best){best=d;target=p;}
+    }
+
+    if(target){
+      this.vel.x+=(target.pos.x-this.pos.x)*0.0006;
+      this.vel.y+=(target.pos.y-this.pos.y)*0.0006;
+
+      if(best<25){
+        plankton.splice(plankton.indexOf(target),1);
+        this.energy+=60;
+      }
+    }
+
+    for(let c of currents){
+      this.vel.x+=c.x*0.05;
+      this.vel.y+=c.y*0.05;
+    }
+
+    this.vel.mul(0.98);
+    this.pos.add(this.vel);
+
+    this.energy--;
+
+    if(this.energy>400){
+      fish.push(new Fish());
+      this.energy=200;
+    }
+  }
+  draw(){
+    ctx.fillStyle="#00bcd4";
+    ctx.beginPath();
+    ctx.moveTo(this.pos.x,this.pos.y);
+    ctx.lineTo(this.pos.x-6,this.pos.y+3);
+    ctx.lineTo(this.pos.x-6,this.pos.y-3);
+    ctx.fill();
+  }
+}
+
+class Predator extends Fish{
+  draw(){
+    ctx.fillStyle="#ff3d6e";
+    ctx.fillRect(this.pos.x-5,this.pos.y-5,10,10);
+  }
+}
+
+for(let i=0;i<80;i++) plankton.push(new Plankton());
+for(let i=0;i<12;i++) fish.push(new Fish());
+fish.push(new Predator());
+
+let pointer=null;
+
+canvas.onpointerdown=e=>{
+  pointer={x:e.clientX,y:e.clientY};
+};
+canvas.onpointermove=e=>{
+  if(pointer){
+    currents.push({
+      x:(e.clientX-pointer.x)*0.01,
+      y:(e.clientY-pointer.y)*0.01
+    });
+    pointer={x:e.clientX,y:e.clientY};
+  }
+};
+canvas.onpointerup=()=>pointer=null;
+
+function loop(){
+  ctx.fillStyle="rgba(0,0,0,0.25)";
+  ctx.fillRect(0,0,canvas.width,canvas.height);
+
+  if(Math.random()<0.3) plankton.push(new Plankton());
+
+  for(let p of plankton){p.update();p.draw();}
+  for(let f of fish){f.update();f.draw();}
+
+  currents.length=0;
+
+  document.getElementById("p").textContent=plankton.length;
+  document.getElementById("f").textContent=fish.length;
+
+  requestAnimationFrame(loop);
+}
+loop();
+
+document.getElementById("toggle").onclick=()=>{
+  document.getElementById("ui").style.display="none";
+};
+</script>
+</body>
+</html>
