@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>AudioSurf Rollercoaster • Gemini</title>
+    <style>
+        body { margin: 0; background: #000; color: #fff; font-family: 'Orbitron', sans-serif; overflow: hidden; touch-action: none; }
+        #ui { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); text-align: center; z-index: 100; pointer-events: auto; }
+        #hud { position: fixed; top: 20px; left: 20px; font-size: 1.5rem; color: #00faff; text-shadow: 0 0 10px #00faff; pointer-events: none; }
+        .btn { background: #50d2d2; color: #000; border: none; padding: 20px 40px; font-size: 1.2rem; cursor: pointer; border-radius: 5px; font-weight: bold; }
+        input[type="file"] { display: none; }
+        #loading { display: none; margin-top: 20px; font-size: 0.8rem; letter-spacing: 2px; }
+    </style>
+</head>
+<body>
+
+<div id="hud">SCORE: 0</div>
+
+<div id="ui">
+    <div id="loader-box">
+        <h1 style="letter-spacing: 15px; margin-bottom: 0;">QUANTUM</h1>
+        <h2 style="letter-spacing: 5px; color: #ff00c1; margin-top: 0;">SURFER</h2>
+        <label class="btn">
+            SUBIR MP3
+            <input type="file" id="audio-input" accept="audio/*">
+        </label>
+        <div id="loading">GENERANDO MONTAÑA RUSA...</div>
+    </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+let scene, camera, renderer, ship, analyzer, dataArray;
+let trackSegments = [], blocks = [], particles = [];
+let currentLane = 0, score = 0, isPlaying = false;
+let globalSpeed = 0.6, targetY = 0, curveAural = 0;
+
+function init() {
+    scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x020005);
+    scene.fog = new THREE.FogExp2(0x020005, 0.02);
+
+    camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
+    camera.position.set(0, 6, 12);
+
+    renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(window.devicePixelRatio);
+    document.body.appendChild(renderer.domElement);
+
+    // Nave Estilo Audiosurf
+    const shipGroup = new THREE.Group();
+    const bodyGeo = new THREE.BoxGeometry(1.5, 0.2, 2);
+    const bodyMat = new THREE.MeshPhongMaterial({ color: 0x00faff, emissive: 0x005555 });
+    ship = new THREE.Mesh(bodyGeo, bodyMat);
+    shipGroup.add(ship);
+    scene.add(shipGroup);
+    ship = shipGroup;
+
+    // Luces
+    scene.add(new THREE.HemisphereLight(0xffffff, 0x000000, 0.5));
+    const pLight = new THREE.PointLight(0xff00c1, 2, 50);
+    pLight.position.set(0, 10, 0);
+    scene.add(pLight);
+
+    // Pista inicial
+    for(let i = 0; i < 80; i++) createTrackSegment(i * -2);
+
+    setupControls();
+    animate();
+}
+
+function createTrackSegment(z) {
+    const geo = new THREE.PlaneGeometry(7, 2);
+    const mat = new THREE.MeshPhongMaterial({ 
+        color: 0x111111, 
+        side: THREE.DoubleSide, 
+        wireframe: false,
+        emissive: 0x001122
+    });
+    const seg = new THREE.Mesh(geo, mat);
+    seg.rotation.x = -Math.PI / 2;
+    seg.position.z = z;
+    scene.add(seg);
+    trackSegments.push(seg);
+}
+
+// --- SISTEMA DE PARTÍCULAS (CHISPAS) ---
+function createSpark(pos, color) {
+    for(let i = 0; i < 15; i++) {
+        const pGeo = new THREE.BoxGeometry(0.1, 0.1, 0.1);
+        const pMat = new THREE.MeshBasicMaterial({ color: color });
+        const p = new THREE.Mesh(pGeo, pMat);
+        p.position.copy(pos);
+        p.userData = {
+            vel: new THREE.Vector3((Math.random()-0.5)*0.5, Math.random()*0.5, (Math.random()-0.5)*0.5),
+            life: 1.0
+        };
+        scene.add(p);
+        particles.push(p);
+    }
+}
+
+function setupControls() {
+    const handleTouch = (e) => {
+        const x = e.touches ? e.touches[0].clientX : e.clientX;
+        if(x < window.innerWidth / 3) currentLane = -1;
+        else if(x > (window.innerWidth / 3) * 2) currentLane = 1;
+        else currentLane = 0;
+    };
+    window.addEventListener('touchstart', handleTouch);
+    window.addEventListener('mousedown', handleTouch);
+    window.addEventListener('keydown', e => {
+        if(e.key === "ArrowLeft") currentLane = Math.max(-1, currentLane - 1);
+        if(e.key === "ArrowRight") currentLane = Math.min(1, currentLane + 1);
+    });
+}
+
+document.getElementById('audio-input').onchange = function(e) {
+    const file = e.target.files[0];
+    if(!file) return;
+    document.getElementById('loading').style.display = 'block';
+    
+    const reader = new FileReader();
+    reader.onload = function(ev) {
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        const audio = new Audio(ev.target.result);
+        const source = audioCtx.createMediaElementSource(audio);
+        analyzer = audioCtx.createAnalyser();
+        source.connect(analyzer);
+        analyzer.connect(audioCtx.destination);
+        dataArray = new Uint8Array(analyzer.frequencyBinCount);
+        
+        document.getElementById('ui').style.display = 'none';
+        audio.play();
+        isPlaying = true;
+    };
+    reader.readAsDataURL(file);
+};
+
+function animate() {
+    requestAnimationFrame(animate);
+
+    if(isPlaying && analyzer) {
+        analyzer.getByteFrequencyData(dataArray);
+        const bass = dataArray[0] + dataArray[1] + dataArray[2];
+        const mid = dataArray[10];
+        const vol = (bass / 3 + mid) / 2;
+
+        // --- EFECTO MONTAÑA RUSA ---
+        // Si el volumen es alto, "bajamos" la pista (targetY negativo)
+        targetY = Math.sin(Date.now() * 0.001) * (vol / 20);
+        globalSpeed = 0.8 + (vol / 150);
+
+        trackSegments.forEach((s, i) => {
+            s.position.z += globalSpeed;
+            // Cálculo de altura basado en el índice para crear ondas
+            s.position.y = Math.sin((s.position.z * 0.05) + (Date.now() * 0.002)) * (vol/15);
+            
+            if(s.position.z > 10) s.position.z = -150;
+        });
+
+        // Manejo de Bloques
+        blocks.forEach((b, i) => {
+            b.position.z += globalSpeed;
+            // Los bloques siguen la altura de la pista
+            b.position.y = Math.sin((b.position.z * 0.05) + (Date.now() * 0.002)) * (vol/15) + 0.8;
+            
+            if(Math.abs(b.position.z - ship.position.z) < 1 && Math.abs(b.position.x - ship.position.x) < 1.2) {
+                createSpark(b.position, b.material.color.getHex());
+                scene.remove(b);
+                blocks.splice(i, 1);
+                score += 10;
+                document.getElementById('hud').innerText = `SCORE: ${score}`;
+            }
+            if(b.position.z > 10) { scene.remove(b); blocks.splice(i, 1); }
+        });
+
+        if(Math.random() < 0.05 && vol > 60) {
+            const colors = [0xff00c1, 0x00faff, 0xffff00];
+            const bGeo = new THREE.BoxGeometry(1, 1, 1);
+            const bMat = new THREE.MeshStandardMaterial({ color: colors[Math.floor(Math.random()*3)], emissiveIntensity: 2 });
+            const block = new THREE.Mesh(bGeo, bMat);
+            block.position.set((Math.floor(Math.random()*3)-1)*2.5, 5, -140);
+            scene.add(block);
+            blocks.push(block);
+        }
+
+        // Nave y Cámara
+        ship.position.x += (currentLane * 2.5 - ship.position.x) * 0.1;
+        ship.rotation.z = -(ship.position.x - currentLane * 2.5) * 0.3;
+        ship.position.y = Math.sin((ship.position.z * 0.05) + (Date.now() * 0.002)) * (vol/15) + 0.5;
+
+        camera.position.y += ((ship.position.y + 5) - camera.position.y) * 0.05;
+        camera.position.x += (ship.position.x * 0.5 - camera.position.x) * 0.05;
+        camera.lookAt(ship.position.x, ship.position.y, -20);
+    }
+
+    // Animación de Chispas
+    for(let i = particles.length-1; i>=0; i--) {
+        const p = particles[i];
+        p.position.add(p.userData.vel);
+        p.userData.life -= 0.02;
+        p.material.opacity = p.userData.life;
+        if(p.userData.life <= 0) {
+            scene.remove(p);
+            particles.splice(i, 1);
+        }
+    }
+
+    renderer.render(scene, camera);
+}
+
+init();
+</script>
+</body>
+</html>
+
