@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<style>
+html,body{margin:0;background:#05070a;overflow:hidden}
+canvas{display:block}
+.ui{
+position:fixed;top:10px;left:10px;
+background:rgba(0,0,0,.45);
+color:#9fffe0;font:12px monospace;
+padding:8px;border-radius:10px
+}
+button{margin:2px;background:#10a37f;border:none;border-radius:6px;padding:4px}
+</style>
+</head>
+<body>
+
+<canvas id="c"></canvas>
+
+<div class="ui">
+🧪 Moléculas <button onclick="spawnMol(40)">+</button>
+🫧 Célula <button onclick="spawnCell()">+</button>
+🔥 <button onclick="temp*=1.3">+</button>
+❄️ <button onclick="temp*=0.7">-</button>
+<span id="s"></span>
+</div>
+
+<script>
+const c=document.getElementById("c");
+const x=c.getContext("2d");
+c.width=innerWidth;c.height=innerHeight;
+
+let temp=1;
+
+let mol=[];
+let cells=[];
+let fx=[];
+
+const rand=(a,b)=>Math.random()*(b-a)+a;
+
+function spawnMol(n){
+for(let i=0;i<n;i++){
+mol.push({
+x:rand(0,c.width),
+y:rand(0,c.height),
+vx:rand(-1,1),
+vy:rand(-1,1),
+type:Math.random()<.6?"food":"waste"
+});
+}
+}
+
+function spawnCell(x0,y0){
+cells.push({
+x:x0??rand(0,c.width),
+y:y0??rand(0,c.height),
+vx:rand(-.5,.5),
+vy:rand(-.5,.5),
+r:14,
+energy:30
+});
+}
+
+spawnMol(300);
+spawnCell();
+
+function effect(x0,y0,col){
+for(let i=0;i<8;i++)
+fx.push({x:x0,y:y0,vx:rand(-2,2),vy:rand(-2,2),life:20,col});
+}
+
+function dist2(a,b){
+let dx=a.x-b.x,dy=a.y-b.y;
+return dx*dx+dy*dy;
+}
+
+function updateMol(m){
+m.vx+=(Math.random()-.5)*.15*temp;
+m.vy+=(Math.random()-.5)*.15*temp;
+m.x+=m.vx;
+m.y+=m.vy;
+
+if(m.x<0||m.x>c.width)m.vx*=-1;
+if(m.y<0||m.y>c.height)m.vy*=-1;
+}
+
+function updateCell(cel){
+
+cel.vx+=(Math.random()-.5)*.1;
+cel.vy+=(Math.random()-.5)*.1;
+
+cel.x+=cel.vx;
+cel.y+=cel.vy;
+
+if(cel.x<0||cel.x>c.width)cel.vx*=-1;
+if(cel.y<0||cel.y>c.height)cel.vy*=-1;
+
+cel.energy-=0.05;
+
+for(let i=mol.length-1;i>=0;i--){
+let m=mol[i];
+if(dist2(cel,m)<cel.r*cel.r){
+
+if(m.type==="food"){
+cel.energy+=3;
+effect(cel.x,cel.y,"#4cf");
+}else{
+cel.energy-=2;
+effect(cel.x,cel.y,"#f66");
+}
+
+mol.splice(i,1);
+}
+}
+
+cel.r=10+cel.energy*0.2;
+
+if(cel.energy>70){
+cel.energy*=0.5;
+spawnCell(cel.x+rand(-10,10),cel.y+rand(-10,10));
+effect(cel.x,cel.y,"#8f8");
+}
+
+if(cel.energy<=0){
+effect(cel.x,cel.y,"#fff");
+return false;
+}
+
+return true;
+}
+
+function loop(){
+
+x.fillStyle="rgba(5,7,10,.3)";
+x.fillRect(0,0,c.width,c.height);
+
+for(let m of mol){
+updateMol(m);
+x.shadowBlur=6;
+x.shadowColor=m.type==="food"?"#4cf":"#f66";
+x.fillStyle=m.type==="food"?"#4cf":"#f66";
+x.fillRect(m.x,m.y,2,2);
+}
+
+cells=cells.filter(updateCell);
+
+for(let cel of cells){
+
+let hue=120+cel.energy*2;
+
+x.shadowBlur=18;
+x.shadowColor=`hsl(${hue},80%,60%)`;
+
+x.strokeStyle=`hsl(${hue},80%,60%)`;
+x.lineWidth=2;
+
+x.beginPath();
+x.arc(cel.x,cel.y,cel.r,0,7);
+x.stroke();
+}
+
+x.shadowBlur=0;
+
+for(let i=fx.length-1;i>=0;i--){
+let f=fx[i];
+f.x+=f.vx;
+f.y+=f.vy;
+f.life--;
+x.fillStyle=f.col;
+x.fillRect(f.x,f.y,2,2);
+if(f.life<=0)fx.splice(i,1);
+}
+
+if(Math.random()<0.3) spawnMol(1);
+
+document.getElementById("s").innerText=
+" mol:"+mol.length+"  cells:"+cells.length;
+
+requestAnimationFrame(loop);
+}
+
+loop();
+</script>
+</body>
+</html>
