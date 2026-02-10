@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>LABORATORIO | BRUJO</title>
+    <style>
+        :root {
+            --accent: #50d2d2;
+            --bg: #000;
+            --sidebar-w: 280px;
+            --glitch: #ff00c1;
+        }
+
+        html, body {
+            margin: 0; padding: 0; width: 100%; height: 100%;
+            overflow: hidden; background: var(--bg); position: fixed;
+        }
+
+        /* --- VIEWPORT --- */
+        #viewport {
+            position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+            background: #000; z-index: 1;
+        }
+        iframe { width: 100%; height: 100%; border: none; display: block; }
+
+        /* --- BOTÓN MENÚ CIRCULAR CON GLITCH --- */
+        #menu-toggle {
+            position: fixed; right: 15px; top: 50%; transform: translateY(-50%);
+            z-index: 1000; background: var(--accent); color: #000;
+            border: none; width: 50px; height: 50px; border-radius: 50%;
+            font-size: 24px; cursor: pointer; display: flex; align-items: center; justify-content: center;
+        }
+
+        /* Animación Glitch para el icono */
+        #menu-toggle::before, #menu-toggle::after {
+            content: '☰'; position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            display: flex; align-items: center; justify-content: center; opacity: 0.8;
+        }
+        #menu-toggle::before { color: var(--glitch); z-index: -1; animation: glitch-anim 2s infinite; }
+        #menu-toggle::after { color: #00faff; z-index: -2; animation: glitch-anim 2s infinite reverse; }
+
+        @keyframes glitch-anim {
+            0% { transform: translate(0); }
+            20% { transform: translate(-2px, 2px); }
+            40% { transform: translate(2px, -2px); }
+            60% { transform: translate(-2px, -2px); }
+            80% { transform: translate(2px, 2px); }
+            100% { transform: translate(0); }
+        }
+
+        /* --- SIDEBAR --- */
+        #sidebar {
+            position: fixed; left: 0; top: 0; width: var(--sidebar-w); height: 100%;
+            background: rgba(5, 5, 10, 0.95); backdrop-filter: blur(15px);
+            border-right: 1px solid rgba(80, 210, 210, 0.3);
+            transform: translateX(-100%); transition: transform 0.3s ease;
+            z-index: 1100; padding: 20px; display: flex; flex-direction: column;
+        }
+        #sidebar.open { transform: translateX(0); }
+
+        /* Botón Fullscreen Superior */
+        .btn-fs {
+            background: var(--glitch); color: white; border: none; padding: 12px;
+            border-radius: 8px; font-family: monospace; font-weight: bold;
+            margin-bottom: 25px; cursor: pointer; letter-spacing: 2px;
+            box-shadow: 0 0 10px rgba(255, 0, 193, 0.4);
+        }
+
+        h2 { font-family: monospace; font-size: 0.9rem; color: var(--accent); text-align: center; letter-spacing: 5px; margin-bottom: 20px; }
+
+        #lista-experimentos { flex-grow: 1; overflow-y: auto; padding-bottom: 80px; } /* ESPACIO VACÍO AL FINAL */
+
+        .btn-exp {
+            display: block; width: 100%; padding: 15px; margin-bottom: 10px;
+            background: rgba(80, 210, 210, 0.05); border: 1px solid rgba(80, 210, 210, 0.2);
+            color: #fff; border-radius: 8px; text-align: left; font-size: 0.7rem;
+            text-transform: uppercase; cursor: pointer; transition: 0.2s;
+        }
+        .btn-exp:active { background: var(--accent); color: #000; }
+
+    </style>
+</head>
+<body>
+
+    <button id="menu-toggle" onclick="toggleMenu()">☰</button>
+
+    <div id="sidebar">
+        <button class="btn-fs" onclick="goFull()">FULLSCREEN</button>
+        <h2>CENTRAL</h2>
+        <div id="lista-experimentos"></div>
+    </div>
+
+    <div id="viewport">
+        <iframe id="visor" name="visor"></iframe>
+    </div>
+
+    <script>
+        function toggleMenu() {
+            document.getElementById('sidebar').classList.toggle('open');
+        }
+
+        function goFull() {
+            const de = document.documentElement;
+            if (de.requestFullscreen) de.requestFullscreen();
+            else if (de.mozRequestFullScreen) de.mozRequestFullScreen();
+            else if (de.webkitRequestFullScreen) de.webkitRequestFullScreen();
+            else if (de.msRequestFullscreen) de.msRequestFullscreen();
+            toggleMenu(); // Cerrar menú tras activar
+        }
+
+        function adjustHeight() {
+            document.getElementById('viewport').style.height = window.innerHeight + 'px';
+        }
+
+        async function cargarExperimentos() {
+            const lista = document.getElementById('lista-experimentos');
+            const visor = document.getElementById('visor');
+            try {
+                const res = await fetch('experimentos.json');
+                const data = await res.json();
+                lista.innerHTML = "";
+                data.proyectos.forEach((proy, i) => {
+                    const btn = document.createElement('button');
+                    btn.className = 'btn-exp';
+                    btn.innerText = proy.nombre;
+                    btn.onclick = () => {
+                        visor.src = proy.archivo;
+                        toggleMenu();
+                    };
+                    lista.appendChild(btn);
+                    if(i === 0) visor.src = proy.archivo;
+                });
+            } catch (e) { console.error(e); }
+        }
+
+        window.addEventListener('resize', adjustHeight);
+        adjustHeight();
+        cargarExperimentos();
+    </script>
+</body>
+</html>
+
