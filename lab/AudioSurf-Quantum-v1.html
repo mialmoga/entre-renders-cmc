@@ -1,0 +1,161 @@
+1<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Quantum Surf • Éter Edition</title>
+    <style>
+        :root { --accent: #00faff; --bg: #000; }
+        body { margin: 0; background: var(--bg); color: #fff; font-family: monospace; overflow: hidden; touch-action: none; }
+        
+        #ui { position: fixed; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 10; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+        #overlay { background: rgba(0,0,0,0.8); padding: 30px; border: 2px solid var(--accent); border-radius: 20px; pointer-events: auto; text-align: center; backdrop-filter: blur(10px); }
+        
+        .btn { background: var(--accent); color: #000; border: none; padding: 15px 30px; font-weight: bold; cursor: pointer; border-radius: 5px; margin-top: 15px; }
+        input[type="file"] { display: none; }
+        
+        #stats { position: fixed; top: 10px; left: 10px; color: var(--accent); font-size: 1.2rem; text-shadow: 0 0 10px var(--accent); }
+    </style>
+</head>
+<body>
+
+<div id="stats">SYNC: 0%</div>
+
+<div id="ui">
+    <div id="overlay">
+        <h1>QUANTUM SURF</h1>
+        <p>Selecciona un archivo MP3 para generar la pista</p>
+        <label class="btn">
+            CARGAR MÚSICA
+            <input type="file" id="audio-file" accept="audio/*">
+        </label>
+        <div id="loading" style="display:none; margin-top:15px;">PROCESANDO ONDAS...</div>
+    </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+let scene, camera, renderer, analyzer, dataArray, track, ship;
+let audioContext, source, audioElem;
+let speed = 0.5, targetX = 0;
+
+function init() {
+    scene = new THREE.Scene();
+    scene.fog = new THREE.FogExp2(0x000000, 0.05);
+
+    camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 1000);
+    camera.position.set(0, 2, 5);
+
+    renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    document.body.appendChild(renderer.domElement);
+
+    // Luces
+    const pLight = new THREE.PointLight(0x00faff, 2, 20);
+    pLight.position.set(0, 5, 0);
+    scene.add(pLight);
+
+    // La Nave (Navegador Cuántico)
+    const shipGeo = new THREE.ConeGeometry(0.4, 1, 3);
+    const shipMat = new THREE.MeshBasicMaterial({ color: 0x00faff, wireframe: true });
+    ship = new THREE.Mesh(shipGeo, shipMat);
+    ship.rotation.x = Math.PI / 2;
+    ship.position.y = 0.5;
+    scene.add(ship);
+
+    // La Pista Infinita
+    createTrack();
+    animate();
+}
+
+function createTrack() {
+    const geometry = new THREE.PlaneGeometry(10, 200, 10, 100);
+    const material = new THREE.MeshPhongMaterial({ 
+        color: 0x111111, 
+        wireframe: true, 
+        emissive: 0x002233 
+    });
+    track = new THREE.Mesh(geometry, material);
+    track.rotation.x = -Math.PI / 2;
+    scene.add(track);
+}
+
+// --- PROCESAMIENTO DE AUDIO ---
+document.getElementById('audio-file').onchange = function(e) {
+    const file = e.target.files[0];
+    if(!file) return;
+
+    document.getElementById('loading').style.display = 'block';
+    const url = URL.createObjectURL(file);
+    
+    if(!audioContext) audioContext = new (window.AudioContext || window.webkitAudioContext)();
+    if(audioElem) audioElem.pause();
+
+    audioElem = new Audio(url);
+    source = audioContext.createMediaElementSource(audioElem);
+    analyzer = audioContext.createAnalyser();
+    source.connect(analyzer);
+    analyzer.connect(audioContext.destination);
+    analyzer.fftSize = 256;
+    dataArray = new Uint8Array(analyzer.frequencyBinCount);
+
+    document.getElementById('overlay').style.display = 'none';
+    audioElem.play();
+};
+
+function updateTrack() {
+    if(!analyzer) return;
+    analyzer.getByteFrequencyData(dataArray);
+
+    const vertices = track.geometry.attributes.position.array;
+    const avg = dataArray.reduce((a, b) => a + b) / dataArray.length;
+    
+    document.getElementById('stats').innerText = `SYNC: ${Math.floor(avg)}%`;
+
+    // Deformar pista según audio
+    for (let i = 0; i < vertices.length; i += 3) {
+        let zPos = vertices[i + 1];
+        let freqIdx = Math.floor(Math.abs(vertices[i]) * 10) % dataArray.length;
+        vertices[i + 2] = (dataArray[freqIdx] / 255) * 2;
+    }
+    track.geometry.attributes.position.needsUpdate = true;
+    
+    // Mover pista hacia atrás
+    track.position.z += speed;
+    if(track.position.z > 50) track.position.z = 0;
+
+    // Cambiar color por intensidad
+    track.material.emissive.setHSL(avg/255, 1, 0.2);
+    ship.material.color.setHSL(avg/255, 1, 0.5);
+}
+
+// --- CONTROLES ---
+window.addEventListener('pointermove', (e) => {
+    targetX = (e.clientX / window.innerWidth - 0.5) * 8;
+});
+
+function animate() {
+    requestAnimationFrame(animate);
+    
+    updateTrack();
+    
+    // Suavizado de movimiento de nave
+    ship.position.x += (targetX - ship.position.x) * 0.1;
+    ship.rotation.z = -(targetX - ship.position.x) * 0.5; // Inclinación
+    
+    camera.position.x = ship.position.x * 0.5;
+    camera.lookAt(ship.position.x, 0, -10);
+
+    renderer.render(scene, camera);
+}
+
+window.addEventListener('resize', () => {
+    camera.aspect = window.innerWidth / window.innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(window.innerWidth, window.innerHeight);
+});
+
+init();
+</script>
+</body>
+</html>
