@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>RAYMARCHING TEST • ÉTER</title>
+    <style>
+        body { margin: 0; overflow: hidden; background: #000; }
+        canvas { width: 100vw; height: 100vh; display: block; }
+        #label { position: fixed; top: 20px; width: 100%; text-align: center; color: #64c8ff; font-family: monospace; letter-spacing: 5px; pointer-events: none; }
+    </style>
+</head>
+<body>
+    <div id="label">VOLUMETRIC RAYMARCHING PROBE v1.0</div>
+    <div id="container"></div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+
+    <script id="fragmentShader" type="x-shader/x-fragment">
+        uniform float u_time;
+        uniform vec2 u_resolution;
+        uniform vec2 u_mouse;
+
+        // Función de densidad (Simula un orbital esférico suave)
+        float map(vec3 p) {
+            float d = length(p) - 1.5;
+            // Añadimos una perturbación armónica
+            d += sin(p.x*2.5 + u_time) * sin(p.y*2.5) * sin(p.z*2.5) * 0.2;
+            return d;
+        }
+
+        void main() {
+            vec2 uv = (gl_FragCoord.xy - 0.5 * u_resolution.xy) / u_resolution.y;
+            vec3 ro = vec3(0.0, 0.0, -4.0); // Cámara
+            vec3 rd = normalize(vec3(uv, 1.0)); // Rayo
+            
+            vec3 color = vec3(0.0);
+            float t = 0.0;
+            
+            // RAYMARCHING LOOP: "Caminando" por la nube
+            for(int i = 0; i < 64; i++) {
+                vec3 p = ro + rd * t;
+                float d = map(p);
+                
+                // Si estamos dentro de la zona de "probabilidad"
+                if(d < 0.5) {
+                    float density = smoothstep(0.5, -0.5, d);
+                    // Color cian cuántico con gradiente
+                    vec3 cloudCol = vec3(0.1, 0.5, 1.0) * density;
+                    color += cloudCol * 0.05; // Acumulación de luz (bruma)
+                }
+                
+                t += 0.1; // Paso del rayo
+                if(t > 8.0) break;
+            }
+
+            gl_FragColor = vec4(color, 1.0);
+        }
+    </script>
+
+    <script>
+        const container = document.getElementById('container');
+        const scene = new THREE.Scene();
+        const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
+        const renderer = new THREE.WebGLRenderer();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        container.appendChild(renderer.domElement);
+
+        const geometry = new THREE.PlaneGeometry(2, 2);
+        const uniforms = {
+            u_time: { value: 0 },
+            u_resolution: { value: new THREE.Vector2(window.innerWidth, window.innerHeight) },
+            u_mouse: { value: new THREE.Vector2() }
+        };
+
+        const material = new THREE.ShaderMaterial({
+            uniforms: uniforms,
+            vertexShader: `void main() { gl_Position = vec4(position, 1.0); }`,
+            fragmentShader: document.getElementById('fragmentShader').textContent
+        });
+
+        const mesh = new THREE.Mesh(geometry, material);
+        scene.add(mesh);
+
+        function animate(time) {
+            uniforms.u_time.value = time * 0.001;
+            renderer.render(scene, camera);
+            requestAnimationFrame(animate);
+        }
+
+        window.addEventListener('resize', () => {
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            uniforms.u_resolution.value.set(window.innerWidth, window.innerHeight);
+        });
+
+        requestAnimationFrame(animate);
+    </script>
+</body>
+</html>
+
