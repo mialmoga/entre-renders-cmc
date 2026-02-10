@@ -1,6 +1,6 @@
 {
   "proyectos": [
-    { "nombre": "WaveSurf Clasic", "archivo": "wavesurf.html" },
+    { "nombre": "WaveSurf Clasic", "archivo": "wavesurfer.html" },
     { "nombre": "WaveSurf Eter", "archivo": "Quantum-Surf-Classic.html" },
     { "nombre": "WaveSurf", "archivo": "AudioSurf-Quantum-v1.html" },
     { "nombre": "BioAcuario", "archivo": "bioaquarium.html" },
