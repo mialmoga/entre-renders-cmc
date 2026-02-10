@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Quantum Orbital Explorer • Gemini Edition</title>
+    <style>
+        :root { --accent: #64c8ff; --bg: #000; }
+        body { margin: 0; background: var(--bg); color: #fff; font-family: sans-serif; overflow: hidden; touch-action: none; }
+        
+        /* Interfaz estilo App */
+        #top-info { position: fixed; top: 20px; width: 100%; text-align: center; pointer-events: none; }
+        #orbital-label { font-size: 2.5rem; font-weight: 300; letter-spacing: 5px; opacity: 0.9; }
+
+        /* Menú Inferior (Inspirado en tus capturas) */
+        #app-menu {
+            position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%);
+            display: grid; grid-template-columns: repeat(4, 60px); gap: 10px;
+            background: rgba(255,255,255,0.05); padding: 15px; border-radius: 20px;
+            backdrop-filter: blur(10px); border: 1px solid rgba(255,255,255,0.1);
+        }
+
+        .menu-col { display: flex; flex-direction: column; align-items: center; gap: 8px; }
+        .val-display { font-size: 1.2rem; font-weight: bold; height: 30px; }
+        
+        .nav-btn {
+            width: 44px; height: 44px; border-radius: 12px; border: none;
+            background: rgba(255,255,255,0.1); color: white; font-size: 1.2rem;
+            cursor: pointer; display: flex; align-items: center; justify-content: center;
+        }
+        .nav-btn:active { background: var(--accent); color: #000; }
+        
+        .mode-btn { 
+            width: 44px; height: 44px; border-radius: 12px; border: 1px solid var(--accent);
+            background: transparent; color: var(--accent); font-weight: bold;
+        }
+        .mode-btn.active { background: var(--accent); color: #000; }
+
+    </style>
+</head>
+<body>
+
+<div id="top-info">
+    <div id="orbital-label">4d₁</div>
+</div>
+
+<div id="app-menu">
+    <div class="menu-col">
+        <button class="nav-btn" onclick="updateN(1)">▲</button>
+        <div class="val-display" id="val-n">4</div>
+        <button class="nav-btn" onclick="updateN(-1)">▼</button>
+    </div>
+    <div class="menu-col">
+        <button class="nav-btn" onclick="updateL(1)">▲</button>
+        <div class="val-display" id="val-l">2</div>
+        <button class="nav-btn" onclick="updateL(-1)">▼</button>
+    </div>
+    <div class="menu-col">
+        <button class="nav-btn" onclick="updateM(1)">▲</button>
+        <div class="val-display" id="val-m">1</div>
+        <button class="nav-btn" onclick="updateM(-1)">▼</button>
+    </div>
+    <div class="menu-col">
+        <button class="mode-btn active" id="btn-mode" onclick="toggleMode()">ℂ</button>
+        <button class="nav-btn" style="margin-top:46px">▶</button>
+    </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+// --- CONFIGURACIÓN CUÁNTICA ---
+let n = 4, l = 2, m = 1;
+let isComplex = true;
+
+// --- THREE.JS SETUP ---
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 1000);
+camera.position.z = 15;
+
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setSize(window.innerWidth, window.innerHeight);
+document.body.appendChild(renderer.domElement);
+
+// --- EJES X, Y, Z ---
+function createAxis(color, vector) {
+    const geom = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0,0,0), vector.multiplyScalar(8)]);
+    const mat = new THREE.LineBasicMaterial({ color: color, linewidth: 2 });
+    return new THREE.Line(geom, mat);
+}
+scene.add(createAxis(0xff0000, new THREE.Vector3(1,0,0))); // X - Rojo
+scene.add(createAxis(0x00ff00, new THREE.Vector3(0,1,0))); // Y - Verde
+scene.add(createAxis(0x0000ff, new THREE.Vector3(0,0,1))); // Z - Azul
+
+// --- NUBE DE PROBABILIDAD (PARTÍCULAS) ---
+const partCount = 50000;
+const positions = new Float32Array(partCount * 3);
+const colors = new Float32Array(partCount * 3);
+const geometry = new THREE.BufferGeometry();
+const material = new THREE.PointsMaterial({ size: 0.05, vertexColors: true, transparent: true, opacity: 0.6, blending: THREE.AdditiveBlending });
+
+const points = new THREE.Points(geometry, material);
+scene.add(points);
+
+function generateOrbital() {
+    const posAttr = [];
+    const colAttr = [];
+    const letters = ['s', 'p', 'd', 'f', 'g', 'h'];
+    
+    document.getElementById('orbital-label').innerText = `${n}${letters[l]}${m}`;
+    
+    for(let i = 0; i < partCount; i++) {
+        // Muestreo aleatorio en volumen
+        const r = Math.random() * (n * n * 1.5);
+        const theta = Math.random() * Math.PI;
+        const phi = Math.random() * Math.PI * 2;
+
+        // Función de onda simplificada para visualización (Armónicos esféricos visuales)
+        // Esto simula la densidad de probabilidad |ψ|²
+        const prob = Math.pow(r, l) * Math.exp(-r/n) * Math.abs(Math.cos(theta * l + m));
+        
+        if (Math.random() < prob * 0.5) {
+            const x = r * Math.sin(theta) * Math.cos(phi);
+            const y = r * Math.sin(theta) * Math.sin(phi);
+            const z = r * Math.cos(theta);
+            
+            posAttr.push(x, y, z);
+            
+            // Color según fase/modo
+            const hue = isComplex ? (phi / (Math.PI * 2)) : (Math.cos(theta * l) > 0 ? 0.6 : 0.1);
+            const color = new THREE.Color().setHSL(hue, 0.8, 0.5);
+            colAttr.push(color.r, color.g, color.b);
+        }
+    }
+    
+    geometry.setAttribute('position', new THREE.Float32BufferAttribute(posAttr, 3));
+    geometry.setAttribute('color', new THREE.Float32BufferAttribute(colAttr, 3));
+}
+
+// --- CONTROLES ---
+function updateN(v) { n = Math.max(1, n + v); syncUI(); }
+function updateL(v) { l = Math.min(n - 1, Math.max(0, l + v)); syncUI(); }
+function updateM(v) { m = Math.min(l, Math.max(-l, m + v)); syncUI(); }
+function toggleMode() { 
+    isComplex = !isComplex; 
+    document.getElementById('btn-mode').innerText = isComplex ? 'ℂ' : 'ℝ';
+    generateOrbital(); 
+}
+
+function syncUI() {
+    document.getElementById('val-n').innerText = n;
+    document.getElementById('val-l').innerText = l;
+    document.getElementById('val-m').innerText = m;
+    generateOrbital();
+}
+
+// --- ANIMACIÓN ---
+function animate() {
+    requestAnimationFrame(animate);
+    points.rotation.y += 0.005;
+    renderer.render(scene, camera);
+}
+
+window.addEventListener('resize', () => {
+    camera.aspect = window.innerWidth / window.innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(window.innerWidth, window.innerHeight);
+});
+
+// Touch Orbit (Simplificado)
+let isDown = false;
+window.addEventListener('pointerdown', () => isDown = true);
+window.addEventListener('pointerup', () => isDown = false);
+window.addEventListener('pointermove', (e) => {
+    if(isDown) {
+        scene.rotation.y += e.movementX * 0.01;
+        scene.rotation.x += e.movementY * 0.01;
+    }
+});
+
+syncUI();
+animate();
+</script>
+</body>
+</html>
+
