@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Quantum Raymarcher Fix • Éter</title>
+    <style>
+        :root { --accent: #64c8ff; --bg: #000; }
+        body { margin: 0; background: var(--bg); color: #fff; font-family: sans-serif; overflow: hidden; touch-action: none; }
+        #top-info { position: fixed; top: 20px; width: 100%; text-align: center; pointer-events: none; z-index: 10; }
+        #orbital-label { font-size: 2.2rem; font-weight: 200; letter-spacing: 5px; color: var(--accent); text-shadow: 0 0 15px var(--accent); }
+        #app-menu {
+            position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%);
+            display: grid; grid-template-columns: repeat(4, 60px); gap: 10px;
+            background: rgba(0,0,0,0.7); padding: 15px; border-radius: 25px;
+            backdrop-filter: blur(15px); border: 1px solid rgba(100,200,255,0.2); z-index: 100;
+        }
+        .menu-col { display: flex; flex-direction: column; align-items: center; gap: 5px; }
+        .val-display { font-size: 1.1rem; font-weight: bold; color: var(--accent); }
+        .nav-btn { width: 44px; height: 44px; border-radius: 12px; border: none; background: rgba(255,255,255,0.1); color: white; font-size: 1.1rem; cursor: pointer; }
+        .mode-btn { width: 44px; height: 44px; border-radius: 12px; border: 1px solid var(--accent); background: transparent; color: var(--accent); font-weight: bold; cursor: pointer; }
+        .mode-btn.active { background: var(--accent); color: #000; }
+    </style>
+</head>
+<body>
+
+<div id="top-info"><div id="orbital-label">3d₁</div></div>
+
+<div id="app-menu">
+    <div class="menu-col">
+        <button class="nav-btn" onclick="chN(1)">▲</button>
+        <div class="val-display" id="val-n">3</div>
+        <button class="nav-btn" onclick="chN(-1)">▼</button>
+    </div>
+    <div class="menu-col">
+        <button class="nav-btn" onclick="chL(1)">▲</button>
+        <div class="val-display" id="val-l">2</div>
+        <button class="nav-btn" onclick="chL(-1)">▼</button>
+    </div>
+    <div class="menu-col">
+        <button class="nav-btn" onclick="chM(1)">▲</button>
+        <div class="val-display" id="val-m">1</div>
+        <button class="nav-btn" onclick="chM(-1)">▼</button>
+    </div>
+    <div class="menu-col">
+        <button class="mode-btn active" id="btn-mode" onclick="toggleMode()">ℂ</button>
+        <button class="mode-btn" onclick="resetCam()" style="margin-top:40px; font-size: 0.7rem;">RESET</button>
+    </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+
+<script id="fragmentShader" type="x-shader/x-fragment">
+    uniform float u_time;
+    uniform vec2 u_resolution;
+    uniform float u_zoom;
+    uniform mat4 u_rotMat;
+    uniform int u_n, u_l, u_m;
+    uniform bool u_isComplex;
+
+    float getDensity(vec3 p) {
+        float r = length(p);
+        if (r < 0.05 || r > 20.0) return 0.0;
+
+        float theta = acos(clamp(p.z / r, -1.0, 1.0));
+        float phi = atan(p.y, p.x);
+
+        // Funcción Radial simplificada corregida
+        float radial = pow(r, float(u_l)) * exp(-r / float(u_n));
+        
+        // Armónicos Esféricos - Formas Reales
+        float angular = 0.0;
+        if(u_l == 0) angular = 1.0;
+        else if(u_l == 1) { // p
+            if(u_m == 0) angular = abs(cos(theta));
+            else angular = abs(sin(theta));
+        }
+        else if(u_l == 2) { // d
+            if(u_m == 0) angular = abs(3.0*cos(theta)*cos(theta)-1.0);
+            else if(u_m == 1) angular = abs(sin(theta)*cos(theta));
+            else angular = abs(sin(theta)*sin(theta));
+        }
+        else {
+            angular = abs(cos(theta * float(u_l)));
+        }
+        
+        return radial * angular * 0.5;
+    }
+
+    void main() {
+        vec2 uv = (gl_FragCoord.xy - 0.5 * u_resolution.xy) / u_resolution.y;
+        
+        // ZOOM CORREGIDO: Movemos el origen del rayo (ro)
+        vec3 ro = vec3(0.0, 0.0, -u_zoom); 
+        vec3 rd = normalize(vec3(uv, 2.0)); // FOV fijo
+        
+        ro = (u_rotMat * vec4(ro, 1.0)).xyz;
+        rd = (u_rotMat * vec4(rd, 0.0)).xyz;
+
+        vec3 color = vec3(0.0);
+        float t = 0.0;
+        // Salto dinámico para evitar el glow excesivo al alejar
+        float stepSize = u_zoom * 0.01; 
+
+        for(int i = 0; i < 100; i++) {
+            vec3 p = ro + rd * t;
+            float d = getDensity(p);
+            
+            if(d > 0.01) {
+                float phiPos = atan(p.y, p.x);
+                vec3 cloudCol = u_isComplex ? 
+                    0.5 + 0.5 * cos(phiPos + u_time + vec3(0,2,4)) : 
+                    vec3(0.4, 0.7, 1.0);
+                
+                // Normalización de intensidad basada en zoom
+                color += cloudCol * d * (0.05 / (u_zoom * 0.1));
+            }
+            t += 0.2;
+            if(t > u_zoom + 15.0) break;
+        }
+
+        gl_FragColor = vec4(color, 1.0);
+    }
+</script>
+
+<script>
+let n=3, l=2, m=1, zoom=20, isComplex=true;
+const scene = new THREE.Scene();
+const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setSize(window.innerWidth, window.innerHeight);
+document.body.appendChild(renderer.domElement);
+
+const rotationMatrix = new THREE.Matrix4();
+const uniforms = {
+    u_time: { value: 0 },
+    u_resolution: { value: new THREE.Vector2(window.innerWidth, window.innerHeight) },
+    u_zoom: { value: zoom },
+    u_rotMat: { value: rotationMatrix },
+    u_n: { value: n }, u_l: { value: l }, u_m: { value: m },
+    u_isComplex: { value: isComplex }
+};
+
+const material = new THREE.ShaderMaterial({
+    uniforms: uniforms,
+    vertexShader: `void main() { gl_Position = vec4(position, 1.0); }`,
+    fragmentShader: document.getElementById('fragmentShader').textContent
+});
+
+const mesh = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), material);
+scene.add(mesh);
+
+// --- PINCH TO ZOOM & DRAG ---
+let lastDist = 0, isDrag = false, prevM = { x: 0, y: 0 };
+
+window.addEventListener('touchstart', e => {
+    if(e.touches.length === 2) lastDist = Math.hypot(e.touches[0].pageX - e.touches[1].pageX, e.touches[0].pageY - e.touches[1].pageY);
+    else { isDrag = true; prevM = { x: e.touches[0].pageX, y: e.touches[0].pageY }; }
+}, { passive: false });
+
+window.addEventListener('touchmove', e => {
+    e.preventDefault();
+    if(e.touches.length === 2) {
+        const d = Math.hypot(e.touches[0].pageX - e.touches[1].pageX, e.touches[0].pageY - e.touches[1].pageY);
+        zoom = Math.max(5, Math.min(80, zoom - (d - lastDist) * 0.1));
+        uniforms.u_zoom.value = zoom;
+        lastDist = d;
+    } else if(isDrag) {
+        const dx = (e.touches[0].pageX - prevM.x) * 0.01, dy = (e.touches[0].pageY - prevM.y) * 0.01;
+        rotationMatrix.multiplyMatrices(new THREE.Matrix4().makeRotationY(dx).multiply(new THREE.Matrix4().makeRotationX(dy)), rotationMatrix);
+        prevM = { x: e.touches[0].pageX, y: e.touches[0].pageY };
+    }
+}, { passive: false });
+
+window.addEventListener('touchend', () => isDrag = false);
+
+// --- UI ---
+function chN(v){ n=Math.max(1, n+v); sync(); }
+function chL(v){ l=Math.min(n-1, Math.max(0, l+v)); sync(); }
+function chM(v){ m+=v; sync(); }
+function toggleMode(){ isComplex=!isComplex; uniforms.u_isComplex.value=isComplex; document.getElementById('btn-mode').innerText=isComplex?'ℂ':'ℝ'; }
+function resetCam(){ rotationMatrix.identity(); zoom=20; uniforms.u_zoom.value=zoom; }
+
+function sync() {
+    document.getElementById('val-n').innerText = n;
+    document.getElementById('val-l').innerText = l;
+    document.getElementById('val-m').innerText = m;
+    const letters = ['s','p','d','f','g'];
+    document.getElementById('orbital-label').innerText = `${n}${letters[l]}${m}`;
+    uniforms.u_n.value = n; uniforms.u_l.value = l; uniforms.u_m.value = m;
+}
+
+function animate(t) {
+    uniforms.u_time.value = t * 0.001;
+    renderer.render(scene, camera);
+    requestAnimationFrame(animate);
+}
+sync();
+requestAnimationFrame(animate);
+</script>
+</body>
+</html>
+
