@@ -695,57 +695,58 @@ function showHint(text) {
 }
 
 // ========= CAMERA CONTROLS =========
-let isDragging = false;
+let isPointerDown = false;
+let pointerStart = { x: 0, y: 0 };
+let pointerMoved = 0;          // distancia total movida desde pointerdown
 let previousMouse = { x: 0, y: 0 };
+const DRAG_THRESHOLD = 8;      // px — menos de esto = tap/click, más = drag
 
 function handlePointerDown(e) {
     if(e.target === renderer.domElement) {
-        isDragging = true;
+        isPointerDown = true;
+        pointerMoved = 0;
+        pointerStart = { x: e.clientX, y: e.clientY };
         previousMouse = { x: e.clientX, y: e.clientY };
     }
 }
 
 function handlePointerMove(e) {
-    if(isDragging) {
+    if(isPointerDown) {
         const deltaX = e.clientX - previousMouse.x;
         const deltaY = e.clientY - previousMouse.y;
-        
+
+        // Acumular distancia total para distinguir drag de tap
+        pointerMoved += Math.sqrt(deltaX * deltaX + deltaY * deltaY);
+
         camera.position.x += deltaX * 0.05;
         camera.position.y -= deltaY * 0.05;
         camera.lookAt(0, 0, 0);
-        
+
         previousMouse = { x: e.clientX, y: e.clientY };
     }
 }
 
-function handlePointerUp() {
-    isDragging = false;
-}
-
-function handleClick(e) {
-    if(!isDragging && e.target === renderer.domElement && selectedElement) {
-        // Create atom at click position in 3D space
+function handlePointerUp(e) {
+    // Solo agregar átomo si fue tap real (sin arrastre)
+    if(isPointerDown && pointerMoved < DRAG_THRESHOLD && e && e.target === renderer.domElement && selectedElement) {
         const mouse = new THREE.Vector2(
-            (e.clientX / window.innerWidth) * 2 - 1,
-            -(e.clientY / window.innerHeight) * 2 + 1
+            (pointerStart.x / window.innerWidth) * 2 - 1,
+            -(pointerStart.y / window.innerHeight) * 2 + 1
         );
-        
         const raycaster = new THREE.Raycaster();
         raycaster.setFromCamera(mouse, camera);
-        
-        const distance = 20;
         const position = raycaster.ray.origin.clone().add(
-            raycaster.ray.direction.multiplyScalar(distance)
+            raycaster.ray.direction.multiplyScalar(20)
         );
-        
         addAtom(position, selectedElement);
     }
+    isPointerDown = false;
+    pointerMoved = 0;
 }
 
 renderer.domElement.addEventListener('mousedown', handlePointerDown);
 renderer.domElement.addEventListener('mousemove', handlePointerMove);
 renderer.domElement.addEventListener('mouseup', handlePointerUp);
-renderer.domElement.addEventListener('click', handleClick);
 
 renderer.domElement.addEventListener('touchstart', (e) => {
     if(e.touches.length === 1) {
@@ -765,10 +766,9 @@ renderer.domElement.addEventListener('touchmove', (e) => {
 
 renderer.domElement.addEventListener('touchend', (e) => {
     e.preventDefault();
-    handlePointerUp();
     if(e.changedTouches.length === 1) {
         const touch = e.changedTouches[0];
-        handleClick({ target: e.target, clientX: touch.clientX, clientY: touch.clientY });
+        handlePointerUp({ target: e.target, clientX: touch.clientX, clientY: touch.clientY });
     }
 }, { passive: false });
 
