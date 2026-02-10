@@ -153,6 +153,44 @@ button.spawn-mode-btn {
   font-size: 12px;
 }
 
+input[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 6px;
+  background: linear-gradient(to right, #0d4a6b 0%, #ffd89b 50%, #0d4a6b 100%);
+  border-radius: 3px;
+  outline: none;
+  transition: all 0.2s;
+}
+
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 18px;
+  height: 18px;
+  background: linear-gradient(135deg, #ffd89b, #ffaa00);
+  border: 2px solid #fff;
+  border-radius: 50%;
+  cursor: pointer;
+  box-shadow: 0 0 10px rgba(255, 216, 155, 0.6), 0 2px 6px rgba(0, 0, 0, 0.4);
+  transition: all 0.2s;
+}
+
+input[type="range"]::-webkit-slider-thumb:hover {
+  transform: scale(1.15);
+  box-shadow: 0 0 20px rgba(255, 216, 155, 0.8);
+}
+
+input[type="range"]::-moz-range-thumb {
+  width: 18px;
+  height: 18px;
+  background: linear-gradient(135deg, #ffd89b, #ffaa00);
+  border: 2px solid #fff;
+  border-radius: 50%;
+  cursor: pointer;
+  box-shadow: 0 0 10px rgba(255, 216, 155, 0.6);
+}
+
 .toggle-btn {
   position: fixed;
   top: 15px;
@@ -225,6 +263,14 @@ button.spawn-mode-btn {
   <div class="stat-row">
     <span>⚡ Energía Total:</span>
     <span class="stat-value" id="energy">0</span>
+  </div>
+  <div style="margin-top: 12px; padding-top: 12px; border-top: 1px solid rgba(16, 163, 127, 0.2);">
+    <div class="stat-row" style="margin-bottom: 8px;">
+      <span><span id="time-icon-small">☀️</span> Ciclo Día/Noche</span>
+      <span class="stat-value" id="cycle-value">50%</span>
+    </div>
+    <input type="range" id="dayNightSlider" min="0" max="100" value="50" 
+           style="width: 100%; cursor: pointer;">
   </div>
 </div>
 
@@ -301,15 +347,27 @@ function updateGrid(entities) {
 
 // ========= TIME SYSTEM =========
 let gameTime = 0;
-let dayNightCycle = 0; // 0 = day, 1 = night
+let dayNightCycle = 0.25; // 0 = night, 0.5 = day, 1 = night (start at dawn)
+let manualControl = false;
 
 function updateDayNight() {
-  gameTime += 0.0005;
-  dayNightCycle = (Math.sin(gameTime) + 1) / 2; // 0 to 1
+  if(!manualControl) {
+    gameTime += 0.0003;
+    dayNightCycle = (Math.sin(gameTime) + 1) / 2; // 0 to 1
+  }
   
   const isDay = dayNightCycle < 0.5;
-  document.getElementById('time-icon').textContent = isDay ? '☀️' : '🌙';
+  const icon = isDay ? '☀️' : '🌙';
+  
+  document.getElementById('time-icon').textContent = icon;
+  document.getElementById('time-icon-small').textContent = icon;
   document.getElementById('time-text').textContent = isDay ? 'DÍA' : 'NOCHE';
+  document.getElementById('cycle-value').textContent = Math.round(dayNightCycle * 100) + '%';
+  
+  // Update slider if in manual mode
+  if(manualControl) {
+    document.getElementById('dayNightSlider').value = dayNightCycle * 100;
+  }
 }
 
 // ========= ENTITIES =========
@@ -337,7 +395,7 @@ class Vec {
   }
   normalize() {
     const m = this.mag();
-    if(m > 0) {
+    if(m > 0 && isFinite(m)) {
       this.x /= m;
       this.y /= m;
     }
@@ -345,7 +403,7 @@ class Vec {
   }
   limit(max) {
     const m = this.mag();
-    if(m > max) {
+    if(m > max && isFinite(m) && m > 0) {
       this.normalize();
       this.mul(max);
     }
@@ -515,6 +573,11 @@ class Fish {
   
   seek(target) {
     const desired = new Vec(target.x - this.pos.x, target.y - this.pos.y);
+    const mag = desired.mag();
+    
+    // Safety check
+    if(mag === 0 || !isFinite(mag)) return new Vec(0, 0);
+    
     desired.normalize();
     desired.mul(this.maxSpeed);
     
@@ -524,13 +587,11 @@ class Fish {
   }
   
   update() {
-    // Hunt plankton
+    // Hunt plankton (search ALL plankton, not just nearby grid)
     let nearestPlankton = null;
     let minDist = Infinity;
     
-    const nearbyPlankton = getNearbyEntities(this.pos.x, this.pos.y, plankton);
-    
-    for(let p of nearbyPlankton) {
+    for(let p of plankton) {
       const d = Math.hypot(this.pos.x - p.pos.x, this.pos.y - p.pos.y);
       if(d < minDist && d < this.visionRange) {
         minDist = d;
@@ -544,7 +605,7 @@ class Fish {
       this.applyForce(hunt);
       
       // Eat if close
-      if(minDist < 8) {
+      if(minDist < 10) {
         const idx = plankton.indexOf(nearestPlankton);
         if(idx !== -1) {
           plankton.splice(idx, 1);
@@ -565,20 +626,22 @@ class Fish {
       }
     }
     
-    // Boids behavior with nearby fish
-    const neighbors = getNearbyEntities(this.pos.x, this.pos.y, fish);
-    
-    const sep = this.separate(neighbors);
-    const ali = this.align(neighbors);
-    const coh = this.cohesion(neighbors);
-    
-    sep.mul(1.5);
-    ali.mul(1.0);
-    coh.mul(1.0);
-    
-    this.applyForce(sep);
-    this.applyForce(ali);
-    this.applyForce(coh);
+    // Boids behavior with nearby fish (ONLY if there are other fish)
+    if(fish.length > 1) {
+      const neighbors = fish.filter(f => f !== this);
+      
+      const sep = this.separate(neighbors);
+      const ali = this.align(neighbors);
+      const coh = this.cohesion(neighbors);
+      
+      sep.mul(1.5);
+      ali.mul(1.0);
+      coh.mul(1.0);
+      
+      this.applyForce(sep);
+      this.applyForce(ali);
+      this.applyForce(coh);
+    }
     
     // Current influence
     for(let c of currents) {
@@ -601,10 +664,19 @@ class Fish {
       this.maxSpeed = 3;
     }
     
+    // Apply forces
     this.vel.add(this.acc);
     this.vel.limit(this.maxSpeed);
     this.pos.add(this.vel);
     this.acc.mul(0);
+    
+    // Safety check for NaN
+    if(!isFinite(this.pos.x) || !isFinite(this.pos.y)) {
+      this.pos.x = rand(0, W);
+      this.pos.y = rand(0, H);
+      this.vel.x = 0;
+      this.vel.y = 0;
+    }
     
     // Wrap around
     if(this.pos.x < 0) this.pos.x = W;
@@ -621,7 +693,10 @@ class Fish {
     }
     
     // Calculate angle for rendering
-    this.angle = Math.atan2(this.vel.y, this.vel.x);
+    const velMag = this.vel.mag();
+    if(velMag > 0.1) {
+      this.angle = Math.atan2(this.vel.y, this.vel.x);
+    }
   }
   
   draw() {
@@ -669,13 +744,11 @@ class Predator extends Fish {
   }
   
   update() {
-    // Hunt fish
+    // Hunt FISH (not plankton!)
     let nearestFish = null;
     let minDist = Infinity;
     
-    const nearbyFish = getNearbyEntities(this.pos.x, this.pos.y, fish);
-    
-    for(let f of nearbyFish) {
+    for(let f of fish) {
       const d = Math.hypot(this.pos.x - f.pos.x, this.pos.y - f.pos.y);
       if(d < minDist && d < this.visionRange) {
         minDist = d;
@@ -689,19 +762,19 @@ class Predator extends Fish {
       this.applyForce(hunt);
       
       // Eat if close
-      if(minDist < 15) {
+      if(minDist < 18) {
         const idx = fish.indexOf(nearestFish);
         if(idx !== -1) {
           fish.splice(idx, 1);
-          this.energy += 100;
+          this.energy += 150;
           
           // Blood particles
-          for(let i = 0; i < 10; i++) {
+          for(let i = 0; i < 12; i++) {
             particles.push({
               x: nearestFish.pos.x,
               y: nearestFish.pos.y,
-              vx: rand(-3, 3),
-              vy: rand(-3, 3),
+              vx: rand(-4, 4),
+              vy: rand(-4, 4),
               life: 1.0,
               color: '#ff3d6e'
             });
@@ -937,6 +1010,17 @@ document.getElementById('reset').addEventListener('click', () => {
   for(let i = 0; i < 100; i++) plankton.push(new Plankton());
   for(let i = 0; i < 15; i++) fish.push(new Fish());
   predators.push(new Predator());
+});
+
+// Day/Night slider control
+document.getElementById('dayNightSlider').addEventListener('input', (e) => {
+  manualControl = true;
+  dayNightCycle = parseFloat(e.target.value) / 100;
+});
+
+// Double click on slider to return to auto mode
+document.getElementById('dayNightSlider').addEventListener('dblclick', () => {
+  manualControl = false;
 });
 
 // ========= MAIN LOOP =========

@@ -1,0 +1,826 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Quantum Chemistry 3D • Claude</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
+            user-select: none;
+        }
+
+        body {
+            background: radial-gradient(ellipse at center, #0a0a15 0%, #000000 100%);
+            overflow: hidden;
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            touch-action: none;
+            color: #64c8ff;
+        }
+
+        canvas {
+            display: block;
+            touch-action: none;
+        }
+
+        #ui {
+            position: fixed;
+            top: 15px;
+            left: 15px;
+            background: rgba(0, 0, 0, 0.85);
+            backdrop-filter: blur(15px);
+            padding: 18px 20px;
+            border-radius: 16px;
+            border: 1px solid rgba(100, 200, 255, 0.3);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.8);
+            font-size: 13px;
+            max-width: 320px;
+            transition: all 0.3s ease;
+            z-index: 100;
+        }
+
+        #ui.hidden {
+            transform: translateY(-20px);
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        #ui h3 {
+            margin: 0 0 15px 0;
+            font-size: 18px;
+            color: #ffffff;
+            text-shadow: 0 0 10px rgba(100, 200, 255, 0.5);
+        }
+
+        .info-text {
+            font-size: 11px;
+            opacity: 0.8;
+            line-height: 1.6;
+            margin-bottom: 12px;
+            padding-bottom: 12px;
+            border-bottom: 1px solid rgba(100, 200, 255, 0.2);
+        }
+
+        .stat-row {
+            display: flex;
+            justify-content: space-between;
+            margin: 6px 0;
+            font-size: 12px;
+        }
+
+        .stat-value {
+            color: #ffffff;
+            font-weight: bold;
+        }
+
+        .element-selector {
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0, 0, 0, 0.85);
+            backdrop-filter: blur(15px);
+            padding: 16px 20px;
+            border-radius: 16px;
+            border: 1px solid rgba(100, 200, 255, 0.3);
+            transition: all 0.3s ease;
+            max-width: 95%;
+            z-index: 100;
+        }
+
+        .element-selector.hidden {
+            transform: translateX(-50%) translateY(20px);
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        .selector-title {
+            font-size: 12px;
+            margin-bottom: 12px;
+            text-align: center;
+            opacity: 0.8;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .element-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(70px, 1fr));
+            gap: 10px;
+            max-width: 600px;
+        }
+
+        .element-btn {
+            background: linear-gradient(135deg, rgba(100, 200, 255, 0.15), rgba(50, 100, 150, 0.15));
+            border: 1px solid rgba(100, 200, 255, 0.4);
+            color: #ffffff;
+            padding: 12px 8px;
+            border-radius: 12px;
+            cursor: pointer;
+            font-size: 11px;
+            font-weight: bold;
+            transition: all 0.2s;
+            text-align: center;
+        }
+
+        .element-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 15px rgba(100, 200, 255, 0.4);
+            background: linear-gradient(135deg, rgba(100, 200, 255, 0.3), rgba(50, 100, 150, 0.3));
+        }
+
+        .element-btn:active {
+            transform: translateY(0);
+        }
+
+        .element-btn.selected {
+            background: linear-gradient(135deg, #64c8ff, #3264ff);
+            box-shadow: 0 0 20px rgba(100, 200, 255, 0.8);
+            border-color: #64c8ff;
+        }
+
+        .element-number {
+            font-size: 9px;
+            opacity: 0.7;
+        }
+
+        .element-symbol {
+            font-size: 20px;
+            margin: 6px 0;
+        }
+
+        .element-name {
+            font-size: 9px;
+            opacity: 0.8;
+        }
+
+        .controls {
+            position: fixed;
+            top: 15px;
+            right: 15px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            z-index: 100;
+        }
+
+        .control-btn {
+            background: linear-gradient(135deg, rgba(100, 200, 255, 0.3), rgba(50, 100, 150, 0.3));
+            border: 2px solid #64c8ff;
+            color: #fff;
+            padding: 10px 16px;
+            border-radius: 12px;
+            cursor: pointer;
+            font-size: 13px;
+            font-weight: bold;
+            transition: all 0.2s;
+            white-space: nowrap;
+        }
+
+        .control-btn:active {
+            transform: scale(0.95);
+        }
+
+        .toggle-btn {
+            width: 44px;
+            height: 44px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+        }
+
+        #hint {
+            position: fixed;
+            bottom: 100px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0, 0, 0, 0.9);
+            padding: 12px 20px;
+            border-radius: 12px;
+            border: 1px solid rgba(100, 200, 255, 0.3);
+            font-size: 12px;
+            opacity: 0;
+            transition: opacity 0.3s;
+            pointer-events: none;
+            text-align: center;
+        }
+
+        #hint.show {
+            opacity: 1;
+        }
+
+        @media (max-width: 768px) {
+            .element-grid {
+                grid-template-columns: repeat(4, 1fr);
+                gap: 8px;
+            }
+
+            .element-btn {
+                padding: 10px 6px;
+            }
+        }
+    </style>
+</head>
+<body>
+
+<div id="ui">
+    <h3>⚛️ Quantum Chemistry 3D</h3>
+    <div class="info-text">
+        Click para agregar átomos • Arrastra para rotar • Los átomos se enlazan automáticamente según su valencia
+    </div>
+    <div class="stat-row">
+        <span>Átomos:</span>
+        <span class="stat-value" id="atomCount">0</span>
+    </div>
+    <div class="stat-row">
+        <span>Moléculas:</span>
+        <span class="stat-value" id="moleculeCount">0</span>
+    </div>
+    <div class="stat-row">
+        <span>Enlaces:</span>
+        <span class="stat-value" id="bondCount">0</span>
+    </div>
+    <div class="stat-row">
+        <span>Seleccionado:</span>
+        <span class="stat-value" id="selectedElement">-</span>
+    </div>
+</div>
+
+<div class="controls">
+    <button class="control-btn toggle-btn" id="toggleBtn">👁️</button>
+    <button class="control-btn" id="presetH2O">💧 H₂O</button>
+    <button class="control-btn" id="presetCH4">🔥 CH₄</button>
+    <button class="control-btn" id="clearBtn">🗑️</button>
+</div>
+
+<div class="element-selector" id="elementSelector">
+    <div class="selector-title">Química Orgánica Esencial</div>
+    <div class="element-grid" id="elementGrid"></div>
+</div>
+
+<div id="hint"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+
+// ========= ELEMENT DATABASE (JSON-like) =========
+const ELEMENT_DATABASE = {
+    H: {
+        name: 'Hidrógeno',
+        number: 1,
+        valence: 1,
+        electronegativity: 2.20,
+        color: 0xff6b6b,
+        mass: 1,
+        shells: [1],
+        category: 'nonmetal'
+    },
+    C: {
+        name: 'Carbono',
+        number: 6,
+        valence: 4,
+        electronegativity: 2.55,
+        color: 0x4a4a4a,
+        mass: 12,
+        shells: [2, 4],
+        category: 'nonmetal'
+    },
+    N: {
+        name: 'Nitrógeno',
+        number: 7,
+        valence: 3,
+        electronegativity: 3.04,
+        color: 0x3050f8,
+        mass: 14,
+        shells: [2, 5],
+        category: 'nonmetal'
+    },
+    O: {
+        name: 'Oxígeno',
+        number: 8,
+        valence: 2,
+        electronegativity: 3.44,
+        color: 0xff0d0d,
+        mass: 16,
+        shells: [2, 6],
+        category: 'nonmetal'
+    },
+    P: {
+        name: 'Fósforo',
+        number: 15,
+        valence: 3,
+        electronegativity: 2.19,
+        color: 0xff8000,
+        mass: 31,
+        shells: [2, 8, 5],
+        category: 'nonmetal'
+    },
+    S: {
+        name: 'Azufre',
+        number: 16,
+        valence: 2,
+        electronegativity: 2.58,
+        color: 0xffff30,
+        mass: 32,
+        shells: [2, 8, 6],
+        category: 'nonmetal'
+    },
+    Cl: {
+        name: 'Cloro',
+        number: 17,
+        valence: 1,
+        electronegativity: 3.16,
+        color: 0x1ff01f,
+        mass: 35,
+        shells: [2, 8, 7],
+        category: 'nonmetal'
+    },
+    Na: {
+        name: 'Sodio',
+        number: 11,
+        valence: 1,
+        electronegativity: 0.93,
+        color: 0xab5cf2,
+        mass: 23,
+        shells: [2, 8, 1],
+        category: 'metal'
+    },
+    Ca: {
+        name: 'Calcio',
+        number: 20,
+        valence: 2,
+        electronegativity: 1.00,
+        color: 0x3dff00,
+        mass: 40,
+        shells: [2, 8, 8, 2],
+        category: 'metal'
+    }
+};
+
+// ========= THREE.JS SETUP =========
+const scene = new THREE.Scene();
+scene.fog = new THREE.FogExp2(0x000000, 0.015);
+
+const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
+camera.position.set(0, 0, 25);
+
+const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.setClearColor(0x000000, 0);
+document.body.appendChild(renderer.domElement);
+
+// Lighting
+const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
+scene.add(ambientLight);
+
+const pointLight = new THREE.PointLight(0x64c8ff, 1, 100);
+pointLight.position.set(10, 10, 10);
+scene.add(pointLight);
+
+// ========= ATOM CLASS =========
+class Atom {
+    constructor(position, elementSymbol) {
+        this.element = ELEMENT_DATABASE[elementSymbol];
+        this.symbol = elementSymbol;
+        this.group = new THREE.Group();
+        this.bonds = [];
+        
+        // Nucleus
+        const nucleusGeo = new THREE.SphereGeometry(0.5, 32, 32);
+        const nucleusMat = new THREE.MeshPhongMaterial({
+            color: this.element.color,
+            emissive: this.element.color,
+            emissiveIntensity: 0.3,
+            shininess: 100
+        });
+        this.nucleus = new THREE.Mesh(nucleusGeo, nucleusMat);
+        this.group.add(this.nucleus);
+        
+        // Electron clouds (probability clouds)
+        this.electronClouds = [];
+        this.createElectronClouds();
+        
+        // Position
+        this.group.position.copy(position);
+        scene.add(this.group);
+        
+        // Physics
+        this.velocity = new THREE.Vector3(
+            (Math.random() - 0.5) * 0.02,
+            (Math.random() - 0.5) * 0.02,
+            (Math.random() - 0.5) * 0.02
+        );
+    }
+    
+    createElectronClouds() {
+        const availableElectrons = this.element.valence - this.bonds.length;
+        
+        // Clear old clouds
+        this.electronClouds.forEach(cloud => this.group.remove(cloud));
+        this.electronClouds = [];
+        
+        for(let i = 0; i < availableElectrons; i++) {
+            // Create particle cloud
+            const particleCount = 100;
+            const geometry = new THREE.BufferGeometry();
+            const positions = new Float32Array(particleCount * 3);
+            
+            const angle = (i / availableElectrons) * Math.PI * 2;
+            const cloudRadius = 2;
+            const centerX = Math.cos(angle) * cloudRadius;
+            const centerY = Math.sin(angle) * cloudRadius;
+            
+            for(let j = 0; j < particleCount; j++) {
+                // Gaussian distribution for cloud
+                const r = this.gaussianRandom() * 0.8;
+                const theta = Math.random() * Math.PI * 2;
+                const phi = Math.random() * Math.PI;
+                
+                positions[j * 3] = centerX + r * Math.sin(phi) * Math.cos(theta);
+                positions[j * 3 + 1] = centerY + r * Math.sin(phi) * Math.sin(theta);
+                positions[j * 3 + 2] = r * Math.cos(phi);
+            }
+            
+            geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+            
+            const material = new THREE.PointsMaterial({
+                color: 0x64c8ff,
+                size: 0.08,
+                transparent: true,
+                opacity: 0.6,
+                blending: THREE.AdditiveBlending,
+                depthWrite: false
+            });
+            
+            const cloud = new THREE.Points(geometry, material);
+            this.group.add(cloud);
+            this.electronClouds.push(cloud);
+        }
+    }
+    
+    gaussianRandom() {
+        // Box-Muller transform for normal distribution
+        let u = 0, v = 0;
+        while(u === 0) u = Math.random();
+        while(v === 0) v = Math.random();
+        return Math.sqrt(-2.0 * Math.log(u)) * Math.cos(2.0 * Math.PI * v);
+    }
+    
+    update() {
+        // Drift
+        this.velocity.multiplyScalar(0.98);
+        this.group.position.add(this.velocity);
+        
+        // Boundaries
+        const limit = 15;
+        if(Math.abs(this.group.position.x) > limit) {
+            this.group.position.x = Math.sign(this.group.position.x) * limit;
+            this.velocity.x *= -0.8;
+        }
+        if(Math.abs(this.group.position.y) > limit) {
+            this.group.position.y = Math.sign(this.group.position.y) * limit;
+            this.velocity.y *= -0.8;
+        }
+        if(Math.abs(this.group.position.z) > limit) {
+            this.group.position.z = Math.sign(this.group.position.z) * limit;
+            this.velocity.z *= -0.8;
+        }
+        
+        // Rotate clouds
+        this.electronClouds.forEach((cloud, i) => {
+            cloud.rotation.x += 0.01 * (i % 2 === 0 ? 1 : -1);
+            cloud.rotation.y += 0.015;
+        });
+    }
+    
+    canBond() {
+        return this.bonds.length < this.element.valence;
+    }
+    
+    remove() {
+        scene.remove(this.group);
+    }
+}
+
+// ========= BOND CLASS =========
+class Bond {
+    constructor(atom1, atom2) {
+        this.atom1 = atom1;
+        this.atom2 = atom2;
+        
+        // Create bond line
+        const points = [
+            atom1.group.position.clone(),
+            atom2.group.position.clone()
+        ];
+        
+        const geometry = new THREE.BufferGeometry().setFromPoints(points);
+        const material = new THREE.LineBasicMaterial({
+            color: 0x64c8ff,
+            linewidth: 2,
+            transparent: true,
+            opacity: 0.8
+        });
+        
+        this.line = new THREE.Line(geometry, material);
+        scene.add(this.line);
+        
+        // Register bonds
+        atom1.bonds.push(this);
+        atom2.bonds.push(this);
+        
+        // Update electron clouds
+        atom1.createElectronClouds();
+        atom2.createElectronClouds();
+    }
+    
+    update() {
+        // Update bond line position
+        const positions = this.line.geometry.attributes.position.array;
+        positions[0] = this.atom1.group.position.x;
+        positions[1] = this.atom1.group.position.y;
+        positions[2] = this.atom1.group.position.z;
+        positions[3] = this.atom2.group.position.x;
+        positions[4] = this.atom2.group.position.y;
+        positions[5] = this.atom2.group.position.z;
+        this.line.geometry.attributes.position.needsUpdate = true;
+        
+        // Spring force
+        const direction = new THREE.Vector3().subVectors(
+            this.atom2.group.position,
+            this.atom1.group.position
+        );
+        const distance = direction.length();
+        const targetDistance = 3;
+        
+        if(distance > 0) {
+            const force = (distance - targetDistance) * 0.005;
+            direction.normalize().multiplyScalar(force);
+            
+            this.atom1.velocity.add(direction);
+            this.atom2.velocity.sub(direction);
+        }
+    }
+    
+    isValid() {
+        return atoms.includes(this.atom1) && atoms.includes(this.atom2);
+    }
+    
+    remove() {
+        scene.remove(this.line);
+    }
+}
+
+// ========= SIMULATION STATE =========
+const atoms = [];
+const bonds = [];
+let selectedElement = null;
+
+// ========= BUILD UI =========
+const elementGrid = document.getElementById('elementGrid');
+
+Object.keys(ELEMENT_DATABASE).forEach(symbol => {
+    const el = ELEMENT_DATABASE[symbol];
+    const btn = document.createElement('button');
+    btn.className = 'element-btn';
+    btn.innerHTML = `
+        <div class="element-number">${el.number}</div>
+        <div class="element-symbol">${symbol}</div>
+        <div class="element-name">${el.name}</div>
+    `;
+    
+    btn.addEventListener('click', () => {
+        selectedElement = symbol;
+        document.querySelectorAll('.element-btn').forEach(b => b.classList.remove('selected'));
+        btn.classList.add('selected');
+        document.getElementById('selectedElement').textContent = symbol;
+        
+        showHint(`${el.name} seleccionado • Valencia: ${el.valence}`);
+    });
+    
+    elementGrid.appendChild(btn);
+});
+
+// Select H by default
+selectedElement = 'H';
+document.querySelector('.element-btn').classList.add('selected');
+document.getElementById('selectedElement').textContent = 'H';
+
+// ========= FUNCTIONS =========
+function addAtom(position, symbol) {
+    const atom = new Atom(position, symbol);
+    atoms.push(atom);
+    
+    // Check for bonding
+    for(let other of atoms) {
+        if(other === atom) continue;
+        if(!atom.canBond() || !other.canBond()) continue;
+        
+        const distance = atom.group.position.distanceTo(other.group.position);
+        
+        if(distance < 5) {
+            bonds.push(new Bond(atom, other));
+        }
+    }
+    
+    updateStats();
+}
+
+function updateStats() {
+    document.getElementById('atomCount').textContent = atoms.length;
+    
+    // Count molecules
+    const visited = new Set();
+    let moleculeCount = 0;
+    
+    function dfs(atom) {
+        visited.add(atom);
+        for(let bond of atom.bonds) {
+            const other = bond.atom1 === atom ? bond.atom2 : bond.atom1;
+            if(!visited.has(other)) dfs(other);
+        }
+    }
+    
+    for(let atom of atoms) {
+        if(!visited.has(atom)) {
+            moleculeCount++;
+            dfs(atom);
+        }
+    }
+    
+    document.getElementById('moleculeCount').textContent = moleculeCount;
+    document.getElementById('bondCount').textContent = bonds.length;
+}
+
+function clearAll() {
+    atoms.forEach(a => a.remove());
+    bonds.forEach(b => b.remove());
+    atoms.length = 0;
+    bonds.length = 0;
+    updateStats();
+}
+
+function createH2O() {
+    clearAll();
+    setTimeout(() => {
+        addAtom(new THREE.Vector3(-2, 0, 0), 'H');
+        addAtom(new THREE.Vector3(0, 0, 0), 'O');
+        addAtom(new THREE.Vector3(2, 0, 0), 'H');
+        showHint('💧 Molécula de agua (H₂O) creada');
+    }, 100);
+}
+
+function createCH4() {
+    clearAll();
+    setTimeout(() => {
+        addAtom(new THREE.Vector3(0, 0, 0), 'C');
+        addAtom(new THREE.Vector3(2, 0, 0), 'H');
+        addAtom(new THREE.Vector3(-2, 0, 0), 'H');
+        addAtom(new THREE.Vector3(0, 2, 0), 'H');
+        addAtom(new THREE.Vector3(0, -2, 0), 'H');
+        showHint('🔥 Molécula de metano (CH₄) creada');
+    }, 100);
+}
+
+function showHint(text) {
+    const hint = document.getElementById('hint');
+    hint.textContent = text;
+    hint.classList.add('show');
+    setTimeout(() => hint.classList.remove('show'), 2000);
+}
+
+// ========= CAMERA CONTROLS =========
+let isDragging = false;
+let previousMouse = { x: 0, y: 0 };
+
+function handlePointerDown(e) {
+    if(e.target === renderer.domElement) {
+        isDragging = true;
+        previousMouse = { x: e.clientX, y: e.clientY };
+    }
+}
+
+function handlePointerMove(e) {
+    if(isDragging) {
+        const deltaX = e.clientX - previousMouse.x;
+        const deltaY = e.clientY - previousMouse.y;
+        
+        camera.position.x += deltaX * 0.05;
+        camera.position.y -= deltaY * 0.05;
+        camera.lookAt(0, 0, 0);
+        
+        previousMouse = { x: e.clientX, y: e.clientY };
+    }
+}
+
+function handlePointerUp() {
+    isDragging = false;
+}
+
+function handleClick(e) {
+    if(!isDragging && e.target === renderer.domElement && selectedElement) {
+        // Create atom at click position in 3D space
+        const mouse = new THREE.Vector2(
+            (e.clientX / window.innerWidth) * 2 - 1,
+            -(e.clientY / window.innerHeight) * 2 + 1
+        );
+        
+        const raycaster = new THREE.Raycaster();
+        raycaster.setFromCamera(mouse, camera);
+        
+        const distance = 20;
+        const position = raycaster.ray.origin.clone().add(
+            raycaster.ray.direction.multiplyScalar(distance)
+        );
+        
+        addAtom(position, selectedElement);
+    }
+}
+
+renderer.domElement.addEventListener('mousedown', handlePointerDown);
+renderer.domElement.addEventListener('mousemove', handlePointerMove);
+renderer.domElement.addEventListener('mouseup', handlePointerUp);
+renderer.domElement.addEventListener('click', handleClick);
+
+renderer.domElement.addEventListener('touchstart', (e) => {
+    if(e.touches.length === 1) {
+        e.preventDefault();
+        const touch = e.touches[0];
+        handlePointerDown({ target: e.target, clientX: touch.clientX, clientY: touch.clientY });
+    }
+}, { passive: false });
+
+renderer.domElement.addEventListener('touchmove', (e) => {
+    if(e.touches.length === 1) {
+        e.preventDefault();
+        const touch = e.touches[0];
+        handlePointerMove({ clientX: touch.clientX, clientY: touch.clientY });
+    }
+}, { passive: false });
+
+renderer.domElement.addEventListener('touchend', (e) => {
+    e.preventDefault();
+    handlePointerUp();
+    if(e.changedTouches.length === 1) {
+        const touch = e.changedTouches[0];
+        handleClick({ target: e.target, clientX: touch.clientX, clientY: touch.clientY });
+    }
+}, { passive: false });
+
+// ========= UI CONTROLS =========
+let uiVisible = true;
+
+document.getElementById('toggleBtn').addEventListener('click', () => {
+    uiVisible = !uiVisible;
+    document.getElementById('ui').classList.toggle('hidden');
+    document.getElementById('elementSelector').classList.toggle('hidden');
+});
+
+document.getElementById('clearBtn').addEventListener('click', clearAll);
+document.getElementById('presetH2O').addEventListener('click', createH2O);
+document.getElementById('presetCH4').addEventListener('click', createCH4);
+
+// ========= RESIZE =========
+window.addEventListener('resize', () => {
+    camera.aspect = window.innerWidth / window.innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(window.innerWidth, window.innerHeight);
+});
+
+// ========= ANIMATION LOOP =========
+function animate() {
+    requestAnimationFrame(animate);
+    
+    // Update atoms
+    atoms.forEach(atom => atom.update());
+    
+    // Update bonds
+    for(let i = bonds.length - 1; i >= 0; i--) {
+        const bond = bonds[i];
+        if(!bond.isValid()) {
+            bond.remove();
+            bonds.splice(i, 1);
+        } else {
+            bond.update();
+        }
+    }
+    
+    // Auto-rotate scene slightly
+    scene.rotation.y += 0.001;
+    
+    renderer.render(scene, camera);
+}
+
+// ========= START =========
+showHint('🧪 Selecciona un elemento y haz click para agregar átomos');
+animate();
+updateStats();
+
+</script>
+</body>
+</html>
