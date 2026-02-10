@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Quantum Raymarcher • Éter Edition</title>
+    <style>
+        :root { --accent: #64c8ff; --bg: #000; }
+        body { margin: 0; background: var(--bg); color: #fff; font-family: sans-serif; overflow: hidden; touch-action: none; }
+        #top-info { position: fixed; top: 20px; width: 100%; text-align: center; pointer-events: none; z-index: 10; }
+        #orbital-label { font-size: 2.2rem; font-weight: 200; letter-spacing: 5px; color: var(--accent); text-shadow: 0 0 15px var(--accent); }
+
+        #app-menu {
+            position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%);
+            display: grid; grid-template-columns: repeat(4, 60px); gap: 10px;
+            background: rgba(0,0,0,0.7); padding: 15px; border-radius: 25px;
+            backdrop-filter: blur(15px); border: 1px solid rgba(100,200,255,0.2); z-index: 100;
+        }
+
+        .menu-col { display: flex; flex-direction: column; align-items: center; gap: 5px; }
+        .val-display { font-size: 1.1rem; font-weight: bold; color: var(--accent); }
+        .nav-btn {
+            width: 44px; height: 44px; border-radius: 12px; border: none;
+            background: rgba(255,255,255,0.1); color: white; font-size: 1.1rem;
+        }
+        .mode-btn { width: 44px; height: 44px; border-radius: 12px; border: 1px solid var(--accent); background: transparent; color: var(--accent); font-weight: bold; }
+        .mode-btn.active { background: var(--accent); color: #000; }
+    </style>
+</head>
+<body>
+
+<div id="top-info">
+    <div id="orbital-label">3d₁</div>
+</div>
+
+<div id="app-menu">
+    <div class="menu-col">
+        <button class="nav-btn" id="n-up">▲</button>
+        <div class="val-display" id="val-n">3</div>
+        <button class="nav-btn" id="n-down">▼</button>
+    </div>
+    <div class="menu-col">
+        <button class="nav-btn" id="l-up">▲</button>
+        <div class="val-display" id="val-l">2</div>
+        <button class="nav-btn" id="l-down">▼</button>
+    </div>
+    <div class="menu-col">
+        <button class="nav-btn" id="m-up">▲</button>
+        <div class="val-display" id="val-m">1</div>
+        <button class="nav-btn" id="m-down">▼</button>
+    </div>
+    <div class="menu-col">
+        <button class="mode-btn active" id="btn-mode">ℂ</button>
+        <button class="mode-btn" id="btn-reset" style="margin-top:40px; font-size: 0.7rem;">RESET</button>
+    </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+
+<script id="fragmentShader" type="x-shader/x-fragment">
+    uniform float u_time;
+    uniform vec2 u_resolution;
+    uniform float u_zoom;
+    uniform mat4 u_rotMat;
+    uniform int u_n;
+    uniform int u_l;
+    uniform int u_m;
+    uniform bool u_isComplex;
+
+    // --- MATEMÁTICA CUÁNTICA EN GPU ---
+    float getDensity(vec3 p) {
+        float r = length(p);
+        if (r < 0.1 || r > 15.0) return 0.0;
+
+        float theta = acos(clamp(p.z / r, -1.0, 1.0));
+        float phi = atan(p.y, p.x);
+
+        // Parte Radial simplificada
+        float radial = pow(r, float(u_l)) * exp(-r / float(u_n));
+        
+        // Armónicos Esféricos (Aproximación visual de alta fidelidad)
+        float angular = abs(cos(theta * float(u_l) + float(u_m)));
+        if(u_l == 1 && u_m == 0) angular = abs(cos(theta)); // p_z
+        if(u_l == 2 && u_m == 0) angular = abs(3.0*cos(theta)*cos(theta)-1.0); // d_z2
+        
+        return radial * angular;
+    }
+
+    void main() {
+        vec2 uv = (gl_FragCoord.xy - 0.5 * u_resolution.xy) / u_resolution.y;
+        vec3 ro = vec3(0.0, 0.0, -u_zoom); 
+        vec3 rd = normalize(vec3(uv, 1.5));
+        
+        // Aplicar rotación de usuario
+        ro = (u_rotMat * vec4(ro, 1.0)).xyz;
+        rd = (u_rotMat * vec4(rd, 0.0)).xyz;
+
+        vec3 color = vec3(0.0);
+        float t = 0.0;
+        float stepSize = 0.15;
+
+        for(int i = 0; i < 80; i++) {
+            vec3 p = ro + rd * t;
+            float d = getDensity(p);
+            
+            if(d > 0.01) {
+                float phi = atan(p.y, p.x);
+                vec3 cloudCol = u_isComplex ? 
+                    0.5 + 0.5 * cos(phi + u_time + vec3(0,2,4)) : 
+                    vec3(0.4, 0.7, 1.0);
+                
+                color += cloudCol * d * 0.025;
+            }
+            t += stepSize;
+            if(t > 30.0) break;
+        }
+
+        gl_FragColor = vec4(color, 1.0);
+    }
+</script>
+
+<script>
+let n=3, l=2, m=1, zoom=15, isComplex=true;
+const scene = new THREE.Scene();
+const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setSize(window.innerWidth, window.innerHeight);
+document.body.appendChild(renderer.domElement);
+
+const rotationMatrix = new THREE.Matrix4();
+const uniforms = {
+    u_time: { value: 0 },
+    u_resolution: { value: new THREE.Vector2(window.innerWidth, window.innerHeight) },
+    u_zoom: { value: zoom },
+    u_rotMat: { value: rotationMatrix },
+    u_n: { value: n }, u_l: { value: l }, u_m: { value: m },
+    u_isComplex: { value: isComplex }
+};
+
+const material = new THREE.ShaderMaterial({
+    uniforms: uniforms,
+    vertexShader: `void main() { gl_Position = vec4(position, 1.0); }`,
+    fragmentShader: document.getElementById('fragmentShader').textContent
+});
+
+const mesh = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), material);
+scene.add(mesh);
+
+// --- GESTOS Y TOUCH (PINCH TO ZOOM) ---
+let lastTouchDist = 0;
+let isDragging = false;
+let prevMouse = { x: 0, y: 0 };
+
+window.addEventListener('touchstart', e => {
+    if(e.touches.length === 2) {
+        lastTouchDist = Math.hypot(e.touches[0].pageX - e.touches[1].pageX, e.touches[0].pageY - e.touches[1].pageY);
+    } else {
+        isDragging = true;
+        prevMouse = { x: e.touches[0].pageX, y: e.touches[0].pageY };
+    }
+}, { passive: false });
+
+window.addEventListener('touchmove', e => {
+    e.preventDefault();
+    if(e.touches.length === 2) {
+        const dist = Math.hypot(e.touches[0].pageX - e.touches[1].pageX, e.touches[0].pageY - e.touches[1].pageY);
+        const delta = (dist - lastTouchDist) * 0.05;
+        zoom = Math.max(5, Math.min(50, zoom - delta));
+        uniforms.u_zoom.value = zoom;
+        lastTouchDist = dist;
+    } else if(isDragging) {
+        const dx = (e.touches[0].pageX - prevMouse.x) * 0.01;
+        const dy = (e.touches[0].pageY - prevMouse.y) * 0.01;
+        const m = new THREE.Matrix4().makeRotationY(dx).multiply(new THREE.Matrix4().makeRotationX(dy));
+        rotationMatrix.multiplyMatrices(m, rotationMatrix);
+        prevMouse = { x: e.touches[0].pageX, y: e.touches[0].pageY };
+    }
+}, { passive: false });
+
+window.addEventListener('touchend', () => { isDragging = false; lastTouchDist = 0; });
+
+// --- UI HANDLERS ---
+const updateUI = () => {
+    document.getElementById('val-n').innerText = n;
+    document.getElementById('val-l').innerText = l;
+    document.getElementById('val-m').innerText = m;
+    const letters = ['s','p','d','f','g'];
+    document.getElementById('orbital-label').innerText = `${n}${letters[l]}${m}`;
+    uniforms.u_n.value = n; uniforms.u_l.value = l; uniforms.u_m.value = m;
+};
+
+document.getElementById('n-up').onclick = () => { n++; updateUI(); };
+document.getElementById('n-down').onclick = () => { n = Math.max(1, n-1); if(l>=n) l=n-1; updateUI(); };
+document.getElementById('l-up').onclick = () => { l = Math.min(n-1, l+1); updateUI(); };
+document.getElementById('l-down').onclick = () => { l = Math.max(0, l-1); updateUI(); };
+document.getElementById('m-up').onclick = () => { m++; updateUI(); };
+document.getElementById('m-down').onclick = () => { m--; updateUI(); };
+document.getElementById('btn-mode').onclick = (e) => { isComplex = !isComplex; uniforms.u_isComplex.value = isComplex; e.target.innerText = isComplex ? 'ℂ' : 'ℝ'; e.target.classList.toggle('active'); };
+document.getElementById('btn-reset').onclick = () => { rotationMatrix.identity(); zoom = 15; uniforms.u_zoom.value = zoom; };
+
+function animate(time) {
+    uniforms.u_time.value = time * 0.001;
+    renderer.render(scene, camera);
+    requestAnimationFrame(animate);
+}
+requestAnimationFrame(animate);
+</script>
+</body>
+</html>
+
