@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>AudioSurf Classic Clone • Gemini</title>
+    <style>
+        body { margin: 0; background: #000; color: #fff; font-family: 'Segoe UI', sans-serif; overflow: hidden; touch-action: none; }
+        #ui { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); text-align: center; z-index: 100; }
+        #hud { position: fixed; top: 20px; left: 20px; font-size: 2rem; font-weight: bold; color: #00faff; text-shadow: 0 0 10px #00faff; pointer-events: none; }
+        .btn { background: #ff00c1; color: #fff; border: none; padding: 20px 40px; font-size: 1.2rem; cursor: pointer; border-radius: 50px; box-shadow: 0 0 20px #ff00c1; }
+        input[type="file"] { display: none; }
+    </style>
+</head>
+<body>
+
+<div id="hud">SCORE: 0</div>
+
+<div id="ui">
+    <div id="loader-box">
+        <h1 style="letter-spacing: 10px;">AUDIOSURF</h1>
+        <p style="opacity: 0.6;">CLONE EXPERIMENTAL v1.0</p>
+        <label class="btn">
+            CARGAR TRACK (MP3)
+            <input type="file" id="audio-input" accept="audio/*">
+        </label>
+    </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+let scene, camera, renderer, ship, analyzer, dataArray;
+let trackSegments = [], blocks = [];
+let currentLane = 0; // -1, 0, 1
+let score = 0;
+let isPlaying = false;
+
+function init() {
+    scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x050010);
+    scene.fog = new THREE.Fog(0x050010, 10, 100);
+
+    camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
+    camera.position.set(0, 5, 12);
+    camera.lookAt(0, 2, 0);
+
+    renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    document.body.appendChild(renderer.domElement);
+
+    // Nave (Estilo original: ala delta)
+    const shipGeo = new THREE.BufferGeometry();
+    const v = new Float32Array([0,0,0,  -0.8,-0.2,1,  0.8,-0.2,1,  0,0.3,1]);
+    shipGeo.setAttribute('position', new THREE.BufferAttribute(v, 3));
+    shipGeo.setIndex([0,1,2, 0,2,3, 0,3,1, 1,2,3]);
+    ship = new THREE.Mesh(shipGeo, new THREE.MeshPhongMaterial({ color: 0xffffff, emissive: 0x00faff }));
+    scene.add(ship);
+
+    // Iluminación
+    const hemi = new THREE.HemisphereLight(0xffffff, 0x000000, 1);
+    scene.add(hemi);
+    const point = new THREE.PointLight(0xff00c1, 2, 20);
+    point.position.set(0, 5, 5);
+    scene.add(point);
+
+    // Pista base (3 carriles)
+    for(let i = 0; i < 50; i++) createTrackSegment(i * -2);
+
+    setupControls();
+    animate();
+}
+
+function createTrackSegment(z) {
+    const geo = new THREE.BoxGeometry(6, 0.1, 2);
+    const mat = new THREE.MeshPhongMaterial({ color: 0x222222, transparent: true, opacity: 0.8 });
+    const seg = new THREE.Mesh(geo, mat);
+    seg.position.z = z;
+    
+    // Líneas de carril
+    const lineGeo = new THREE.PlaneGeometry(0.05, 2);
+    const lineMat = new THREE.MeshBasicMaterial({ color: 0x444444 });
+    [-1, 1].forEach(x => {
+        const l = new THREE.Mesh(lineGeo, lineMat);
+        l.position.set(x, 0.06, 0);
+        l.rotation.x = -Math.PI/2;
+        seg.add(l);
+    });
+
+    scene.add(seg);
+    trackSegments.push(seg);
+}
+
+function spawnBlock() {
+    const laneX = (Math.floor(Math.random() * 3) - 1) * 2;
+    const colors = [0xff0000, 0x00ff00, 0x0000ff, 0xffff00];
+    const geo = new THREE.BoxGeometry(1.2, 0.8, 0.5);
+    const mat = new THREE.MeshStandardMaterial({ 
+        color: colors[Math.floor(Math.random()*colors.length)],
+        emissiveIntensity: 0.5
+    });
+    const block = new THREE.Mesh(geo, mat);
+    block.position.set(laneX, 0.5, -60);
+    scene.add(block);
+    blocks.push(block);
+}
+
+function setupControls() {
+    window.addEventListener('touchstart', e => {
+        const x = e.touches[0].clientX;
+        if(x < window.innerWidth / 2) currentLane = Math.max(-1, currentLane - 1);
+        else currentLane = Math.min(1, currentLane + 1);
+    });
+    window.addEventListener('keydown', e => {
+        if(e.key === "ArrowLeft") currentLane = Math.max(-1, currentLane - 1);
+        if(e.key === "ArrowRight") currentLane = Math.min(1, currentLane + 1);
+    });
+}
+
+document.getElementById('audio-input').onchange = function(e) {
+    const file = e.target.files[0];
+    const reader = new FileReader();
+    reader.onload = function(ev) {
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        const audio = new Audio(ev.target.result);
+        const source = audioCtx.createMediaElementSource(audio);
+        analyzer = audioCtx.createAnalyser();
+        source.connect(analyzer);
+        analyzer.connect(audioCtx.destination);
+        dataArray = new Uint8Array(analyzer.frequencyBinCount);
+        
+        document.getElementById('ui').style.display = 'none';
+        audio.play();
+        isPlaying = true;
+    };
+    reader.readAsDataURL(file);
+};
+
+function animate() {
+    requestAnimationFrame(animate);
+
+    if(isPlaying && analyzer) {
+        analyzer.getByteFrequencyData(dataArray);
+        const volume = dataArray.reduce((a,b) => a+b) / dataArray.length;
+        
+        // Mover pista y bloques
+        const speed = 0.5 + (volume / 100);
+        
+        trackSegments.forEach(s => {
+            s.position.z += speed;
+            if(s.position.z > 15) s.position.z = -85;
+            // Deformación por ritmo
+            s.position.y = Math.sin(s.position.z * 0.1) * (volume/50);
+        });
+
+        blocks.forEach((b, i) => {
+            b.position.z += speed;
+            b.rotation.y += 0.05;
+            // Colisión
+            if(Math.abs(b.position.z - ship.position.z) < 0.5 && Math.abs(b.position.x - ship.position.x) < 1) {
+                scene.remove(b);
+                blocks.splice(i, 1);
+                score += 100;
+                document.getElementById('hud').innerText = `SCORE: ${score}`;
+            }
+            if(b.position.z > 15) { scene.remove(b); blocks.splice(i, 1); }
+        });
+
+        if(Math.random() < 0.05 && volume > 50) spawnBlock();
+        
+        // Movimiento nave
+        ship.position.x += (currentLane * 2 - ship.position.x) * 0.2;
+        ship.rotation.z = -(ship.position.x - currentLane * 2) * 0.5;
+        ship.position.y = Math.sin(ship.position.z * 0.1) * (volume/50) + 0.5;
+
+        // Cámara sigue a la nave
+        camera.position.x = ship.position.x * 0.7;
+        camera.lookAt(0, 2, -10);
+    }
+
+    renderer.render(scene, camera);
+}
+
+init();
+</script>
+</body>
+</html>
+
