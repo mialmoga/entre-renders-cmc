@@ -231,17 +231,74 @@
 const G = id => document.getElementById(id);
 
 // ── CONSTANTES ────────────────────────────────────────────────
-const SPEED     = 26;     // unidades/segundo de los bloques
+const SPEED     = 26;
 const ROAD_W    = 12;
-const SEG       = 6;      // largo de cada tile del road
-const NSEGS     = 55;     // número de tiles en el pool
+const SEG       = 6;
+// El road necesita cubrir desde muy lejos adelante hasta detrás de la cámara.
+// Cámara en Z=+19, tiles detrás hasta Z=+50 para que el ángulo visual oculte el borde.
+// Horizonte visible hasta Z=-300. Total ~350 unidades / 6 por tile = ~60 tiles mínimo.
+const NSEGS     = 70;
+const Z_BACK    = 50;   // tiles llegan hasta aquí detrás de la cámara (Z positivo)
+const Z_FRONT   = -(NSEGS * SEG - Z_BACK); // punto más lejano al frente
 const LANE_X    = [-3.8, 0, 3.8];
 const SHIP_Z    = 0;
-const HIT_Z     = 2.8;    // radio en Z para colisión
-const HIT_X     = 2.4;    // radio en X para colisión
-const MISS_Z    = 7;      // bloque "perdido" si pasa este Z
-const LOOK      = 7;      // segundos de lookahead para spawnear
+const HIT_Z     = 2.8;
+const HIT_X     = 2.4;
+const MISS_Z    = 7;
+const LOOK      = 7;
 const COLORS    = [0xff3366,0x33ff99,0xffcc00,0x00ccff,0xff6600,0xcc33ff];
+
+// ── HEIGHT MAP (efecto montaña rusa) ─────────────────────────
+// Indexado por "distancia en tiles viajada" (roadOff/SEG).
+// hAt(worldZ) devuelve la altura del road en esa coordenada Z del mundo.
+const HM_SIZE   = 4096;
+const HM_AMP    = 5.0;
+const HM_SMOOTH = 22;
+let heightMap   = new Float32Array(HM_SIZE);
+let hmReady     = false;
+
+// Clave: convertir worldZ a índice usando roadOff como cursor
+// worldZ=0 (nave) → índice = floor(roadOff/SEG)
+// worldZ negativo (adelante) → índice menor
+// worldZ positivo (atrás) → índice mayor
+function hAt(worldZ){
+  if(!hmReady) return 0;
+  const tilesCursor = roadOff / SEG;                   // cuántos tiles han pasado
+  const tilesFromShip = -worldZ / SEG;                 // tiles hacia adelante (+) o atrás (-)
+  const idx = Math.round(tilesCursor + tilesFromShip); // índice absoluto en el mapa
+  return heightMap[((idx % HM_SIZE) + HM_SIZE) % HM_SIZE] * HM_AMP;
+}
+
+function buildHeightMap(channelData){
+  const block = Math.max(1, Math.floor(channelData.length / HM_SIZE));
+  const raw   = new Float32Array(HM_SIZE);
+  for(let i=0;i<HM_SIZE;i++){
+    let e=0;
+    for(let j=0;j<block;j++){const s=channelData[i*block+j]||0;e+=s*s;}
+    raw[i]=Math.sqrt(e/block);
+  }
+  const mx=Math.max(...raw)||1;
+  for(let i=0;i<HM_SIZE;i++) raw[i]/=mx;
+  for(let i=0;i<HM_SIZE;i++){
+    let sum=0;
+    for(let k=-HM_SMOOTH;k<=HM_SMOOTH;k++) sum+=raw[(i+k+HM_SIZE)%HM_SIZE];
+    heightMap[i]=sum/(HM_SMOOTH*2+1);
+  }
+  const avg=heightMap.reduce((a,b)=>a+b,0)/HM_SIZE;
+  for(let i=0;i<HM_SIZE;i++) heightMap[i]-=avg;
+  hmReady=true;
+}
+
+function buildDemoHeightMap(){
+  for(let i=0;i<HM_SIZE;i++){
+    heightMap[i] = Math.sin(i/HM_SIZE*Math.PI*22)*0.44
+                 + Math.sin(i/HM_SIZE*Math.PI*9)*0.33
+                 + Math.sin(i/HM_SIZE*Math.PI*61)*0.23;
+  }
+  const avg=heightMap.reduce((a,b)=>a+b,0)/HM_SIZE;
+  for(let i=0;i<HM_SIZE;i++) heightMap[i]-=avg;
+  hmReady=true;
+}
 
 // ── ESTADO MUTABLE ────────────────────────────────────────────
 let phase = 'menu';   // 'menu' | 'playing' | 'paused' | 'ended'
@@ -266,7 +323,7 @@ renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
 renderer.setClearColor(0x05050f);
 
 const scene = new THREE.Scene();
-scene.fog   = new THREE.FogExp2(0x05050f, 0.006);
+scene.fog   = new THREE.FogExp2(0x05050f, 0.0038); // niebla más suave = horizonte más largo
 
 const cam = new THREE.PerspectiveCamera(68, 1, 0.1, 500);
 
@@ -297,37 +354,48 @@ for(let i=0;i<NSEGS;i++){
   const rm=new THREE.MeshPhongMaterial({
     color:0x080820, emissive:new THREE.Color(0,0,0), shininess:60});
   const r=new THREE.Mesh(roadGeo,rm); scene.add(r); tiles.push(r);
-
-  const sm=()=>new THREE.MeshBasicMaterial({color:0x00f5ff,transparent:true,opacity:.2});
-  const sl=new THREE.Mesh(stripGeo,sm()); scene.add(sl); sL.push(sl);
-  const sr=new THREE.Mesh(stripGeo,sm()); scene.add(sr); sR.push(sr);
-
-  const wm=()=>new THREE.MeshPhongMaterial({
-    color:0x00f5ff,emissive:new THREE.Color(0,0.13,0.2),transparent:true,opacity:.5});
-  const wl=new THREE.Mesh(wallGeo,wm()); scene.add(wl); wL.push(wl);
-  const wr=new THREE.Mesh(wallGeo,wm()); scene.add(wr); wR.push(wr);
+  const sl=new THREE.Mesh(stripGeo,
+    new THREE.MeshBasicMaterial({color:0x00f5ff,transparent:true,opacity:.2}));
+  scene.add(sl); sL.push(sl);
+  const sr=new THREE.Mesh(stripGeo,
+    new THREE.MeshBasicMaterial({color:0x00f5ff,transparent:true,opacity:.2}));
+  scene.add(sr); sR.push(sr);
+  const wl=new THREE.Mesh(wallGeo,
+    new THREE.MeshPhongMaterial({color:0x00f5ff,emissive:new THREE.Color(0,0.13,0.2),transparent:true,opacity:.5}));
+  scene.add(wl); wL.push(wl);
+  const wr=new THREE.Mesh(wallGeo,
+    new THREE.MeshPhongMaterial({color:0x00f5ff,emissive:new THREE.Color(0,0.13,0.2),transparent:true,opacity:.5}));
+  scene.add(wr); wR.push(wr);
 }
-const ROAD_START = -(NSEGS * SEG);  // inicio del ciclo: muy lejos al frente
 
 function drawRoad(dt, bass){
   roadOff += SPEED * dt;
-  const range = NSEGS * SEG;
   const pulse = bass * 0.45;
+  const span  = NSEGS * SEG;   // longitud total del ciclo
+
   for(let i=0;i<NSEGS;i++){
-    // Cada tile tiene una posición que cicla entre ROAD_START y ROAD_START+range
-    const z = ROAD_START + ((roadOff + i*SEG) % range);
-    tiles[i].position.set(0, 0, z);
+    // Cada tile i ocupa una franja de SEG unidades.
+    // Su worldZ se calcula así:
+    //   base = Z_BACK (detrás de cámara), cicla hacia atrás sumando roadOff,
+    //   el modulo hace que cuando un tile pasa Z_BACK vuelva a Z_FRONT.
+    const rawZ = Z_BACK - ((roadOff - i*SEG) % span + span) % span;
+    // Snap a grid para evitar gaps entre tiles
+    const z = Math.round(rawZ / SEG) * SEG;
+    const y = hAt(z);
+
+    tiles[i].position.set(0, y, z);
     tiles[i].material.emissive.setRGB(0.03+pulse*.12, 0.03+pulse*.04, 0.1+pulse*.22);
 
-    const op=0.15+pulse*.5;
-    sL[i].position.set(-ROAD_W/2+3.9, 0.18, z);
-    sR[i].position.set( ROAD_W/2-3.9, 0.18, z);
-    sL[i].material.opacity=op; sR[i].material.opacity=op;
+    const op = 0.18+pulse*.45;
+    sL[i].position.set(-ROAD_W/2+3.9, y+0.19, z);
+    sR[i].position.set( ROAD_W/2-3.9, y+0.19, z);
+    sL[i].material.opacity = op;
+    sR[i].material.opacity = op;
 
-    wL[i].position.set(-ROAD_W/2-.08, 0.8, z);
-    wR[i].position.set( ROAD_W/2+.08, 0.8, z);
-    const wi=0.2+pulse;
-    wL[i].material.emissiveIntensity=wi; wR[i].material.emissiveIntensity=wi;
+    wL[i].position.set(-ROAD_W/2-.08, y+0.8, z);
+    wR[i].position.set( ROAD_W/2+.08, y+0.8, z);
+    wL[i].material.emissiveIntensity = 0.2+pulse;
+    wR[i].material.emissiveIntensity = 0.2+pulse;
   }
 }
 
@@ -434,7 +502,9 @@ function clearBlocks(){
 }
 
 function toMenu(){
-  stopAudio(); clearBlocks(); showMenu();
+  stopAudio(); clearBlocks();
+  hmReady=false; camY=8.5;
+  showMenu();
 }
 
 // ── GAME START ────────────────────────────────────────────────
@@ -444,7 +514,7 @@ function startGame(audioBuf, beatList, dur, name){
   // reset state
   score=0; combo=0; maxCombo=0; mult=1; hits=0; misses=0;
   songDur=dur; beats=beatList; laneTarget=1; laneX=0;
-  beatIdx=0; roadOff=0; savedBuf=audioBuf;
+  beatIdx=0; roadOff=0; savedBuf=audioBuf; camY=8.5;
   beats.forEach(b=>{ b.spawned=false; });
   ship.position.set(0,1.2,SHIP_Z);
 
@@ -562,33 +632,41 @@ function spawnBlocks(){
 
 // ── NAVE Y BLOQUES ────────────────────────────────────────────
 function tickShip(dt){
-  // Slide de carril
   const tx=LANE_X[laneTarget];
   laneX += (tx-laneX) * (1-Math.pow(0.001, dt));
 
-  const ct = actx ? actx.currentTime-audioStart : 0;
+  const ct    = actx ? actx.currentTime-audioStart : 0;
   const throb = Math.sin(ct*8)*.06;
   const tilt  = (tx-laneX)*.13;
-  ship.position.set(laneX, 1.2+throb, SHIP_Z);
-  ship.rotation.set(.05, 0, -tilt);
+
+  // Nave sigue la altura del road justo en Z=SHIP_Z
+  const shipH = hAt(SHIP_Z);
+  // Pendiente: diferencia entre el tile detrás y adelante de la nave
+  const slope = (hAt(SHIP_Z+SEG) - hAt(SHIP_Z-SEG)) / (2*SEG);
+  ship.position.set(laneX, shipH+1.2+throb, SHIP_Z);
+  ship.rotation.set(0.05 - slope*0.4, 0, -tilt);
   eLight.intensity = 3+Math.sin(ct*14)*1.5;
 
-  // Mover bloques y detectar colisión
+  // Mover bloques
   for(let i=live.length-1; i>=0; i--){
     const b=live[i];
     if(!b.visible||!b.userData.alive){ live.splice(i,1); continue; }
 
-    b.position.z += SPEED * dt;   // ← MOVIMIENTO CENTRAL
-    b.rotation.y += dt*2.2;
-    b.rotation.x += dt*1.4;
+    b.position.z += SPEED * dt;
+    b.rotation.y += dt*2.0;
+    b.rotation.x += dt*1.3;
 
-    // Fade in según distancia
-    const ahead = -b.position.z;   // positivo mientras está delante de la nave
-    if(ahead > 50)      b.material.opacity=0;
-    else if(ahead > 20) b.material.opacity=(50-ahead)/30*.9;
-    else                b.material.opacity=0.9;
+    // El bloque se posa SOBRE el road: hAt(su Z actual) + offset fijo
+    const rh = hAt(b.position.z);
+    b.position.y = rh + 1.1;   // directo, sin interpolación para que no flote
 
-    // Zona de colisión
+    // Fade in suave
+    const ahead = -b.position.z;
+    if(ahead > 60)      b.material.opacity=0;
+    else if(ahead > 25) b.material.opacity=(60-ahead)/35*.88;
+    else                b.material.opacity=0.88;
+
+    // Colisión en Z y X (Y es libre porque la nave sube con el road)
     if(b.position.z >= SHIP_Z-HIT_Z && b.position.z <= SHIP_Z+HIT_Z){
       if(Math.abs(b.position.x - laneX) < HIT_X){
         burst(b.position.x,b.position.y,b.position.z,b.material.color.getHex());
@@ -602,7 +680,6 @@ function tickShip(dt){
       }
     }
 
-    // Zona de miss
     if(b.position.z > SHIP_Z+MISS_Z){
       b.visible=false; b.userData.alive=false; live.splice(i,1);
       misses++; combo=0; mult=1;
@@ -613,14 +690,31 @@ function tickShip(dt){
 
 // ── CÁMARA ────────────────────────────────────────────────────
 let shk=0;
+let camY=8.5;
+
 function tickCam(dt, bass){
-  shk=shk*.85+bass*.1;
-  cam.position.set(laneX*.22+(Math.random()-.5)*shk*.3, 8.5+(Math.random()-.5)*shk*.15, SHIP_Z+19);
-  cam.lookAt(laneX*.1, .8, SHIP_Z-28);
+  shk = shk*.85 + bass*.09;
+  // Cámara sigue la altura del road donde ella está (Z = SHIP_Z + 19)
+  const camRoadH  = hAt(SHIP_Z+19);
+  const targetCamY = camRoadH + 8.5;
+  camY += (targetCamY - camY) * 0.055;   // inercia = sensación de montaña rusa
+
+  // Lookahead: mira hacia el road varios tiles adelante de la nave
+  const lookH = hAt(SHIP_Z - 30);
+
+  cam.position.set(
+    laneX*.2  + (Math.random()-.5)*shk*.22,
+    camY      + (Math.random()-.5)*shk*.1,
+    SHIP_Z+19
+  );
+  cam.lookAt(laneX*.08, lookH+1.0, SHIP_Z-30);
 }
+
 function menuCam(t){
-  cam.position.set(Math.sin(t*.28)*2.5, 8.5, SHIP_Z+19);
-  cam.lookAt(0, .8, SHIP_Z-28);
+  const h = hAt(SHIP_Z+19);
+  camY += (h+8.5 - camY)*0.04;
+  cam.position.set(Math.sin(t*.28)*2.5, camY, SHIP_Z+19);
+  cam.lookAt(0, hAt(SHIP_Z-30)+1.0, SHIP_Z-30);
 }
 
 // ── ANÁLISIS AUDIO ────────────────────────────────────────────
@@ -632,6 +726,9 @@ async function analyzeAudio(arrayBuf, onProg){
 
   onProg(.35,'Detectando beats...');
   const ch=decoded.getChannelData(0), sr=decoded.sampleRate;
+
+  // Construir heightMap para el efecto montaña rusa
+  buildHeightMap(ch);
   const fSize=1024, hop=512, nF=Math.floor((ch.length-fSize)/hop);
   const energy=new Float32Array(nF);
   for(let i=0;i<nF;i++){
@@ -760,6 +857,8 @@ async function handleMidi(file,name){
     }
   }
   setAnalyzeUI(true,'Generando carretera...',.85);
+  // Height map para MIDI usando los datos sintetizados
+  buildHeightMap(buf.getChannelData(0));
   const bl=notes.filter((_,i)=>i%2===0).map((n,i)=>({
     time:n.tm,lane:Math.abs(n.pitch*7)%3,
     colorIdx:n.pitch%COLORS.length,pts:Math.round(100+(n.vel/127)*900),spawned:false}));
@@ -799,6 +898,7 @@ G('demo-btn').addEventListener('click',async()=>{
   await sleep(60);
   const buf=makeDemoBuf();
   setAnalyzeUI(true,'Listo!',.95);
+  buildDemoHeightMap();
   await sleep(300);
   startGame(buf, makeDemoBeats(buf.duration), buf.duration, '⚡ Electronic Rush — Demo');
 });
