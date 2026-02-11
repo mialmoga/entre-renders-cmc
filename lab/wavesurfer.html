@@ -248,56 +248,139 @@ const MISS_Z    = 7;
 const LOOK      = 7;
 const COLORS    = [0xff3366,0x33ff99,0xffcc00,0x00ccff,0xff6600,0xcc33ff];
 
-// ── HEIGHT MAP (efecto montaña rusa) ─────────────────────────
-// Indexado por "distancia en tiles viajada" (roadOff/SEG).
-// hAt(worldZ) devuelve la altura del road en esa coordenada Z del mundo.
+// ── HEIGHT MAP (algoritmo estilo Audiosurf real) ──────────────
+// Fuente: análisis del algoritmo de Dylan Fitterer:
+//   - Bajos/volumen bajo  → pendiente HACIA ARRIBA (tranquilo = subida)
+//   - Intensidad alta / altos → pendiente HACIA ABAJO (drop = bajada)
+//   - El heightMap es la INTEGRAL de la pendiente (acumulada a lo largo del tiempo)
+// Así las partes calmas acumulan altura y los drops descienden bruscamente.
 const HM_SIZE   = 4096;
-const HM_AMP    = 5.0;
-const HM_SMOOTH = 22;
+const HM_AMP    = 7.0;   // metros máximos de excursión
+const HM_SMOOTH = 8;     // suavizado ligero (la integral ya suaviza bastante)
 let heightMap   = new Float32Array(HM_SIZE);
 let hmReady     = false;
 
-// Clave: convertir worldZ a índice usando roadOff como cursor
-// worldZ=0 (nave) → índice = floor(roadOff/SEG)
-// worldZ negativo (adelante) → índice menor
-// worldZ positivo (atrás) → índice mayor
 function hAt(worldZ){
   if(!hmReady) return 0;
-  const tilesCursor = roadOff / SEG;                   // cuántos tiles han pasado
-  const tilesFromShip = -worldZ / SEG;                 // tiles hacia adelante (+) o atrás (-)
-  const idx = Math.round(tilesCursor + tilesFromShip); // índice absoluto en el mapa
+  const tilesCursor    = roadOff / SEG;
+  const tilesFromShip  = -worldZ / SEG;
+  const idx = Math.round(tilesCursor + tilesFromShip);
   return heightMap[((idx % HM_SIZE) + HM_SIZE) % HM_SIZE] * HM_AMP;
 }
 
-function buildHeightMap(channelData){
-  const block = Math.max(1, Math.floor(channelData.length / HM_SIZE));
-  const raw   = new Float32Array(HM_SIZE);
-  for(let i=0;i<HM_SIZE;i++){
+function buildHeightMap(channelData, sampleRate){
+  // ── 1. Separar en bloques temporales ──────────────────────
+  const blockSz = Math.max(1, Math.floor(channelData.length / HM_SIZE));
+  const N = HM_SIZE;
+
+  // ── 2. Calcular energía RMS total por bloque ───────────────
+  const rms = new Float32Array(N);
+  for(let i=0;i<N;i++){
     let e=0;
-    for(let j=0;j<block;j++){const s=channelData[i*block+j]||0;e+=s*s;}
-    raw[i]=Math.sqrt(e/block);
+    for(let j=0;j<blockSz;j++){const s=channelData[i*blockSz+j]||0;e+=s*s;}
+    rms[i]=Math.sqrt(e/blockSz);
   }
-  const mx=Math.max(...raw)||1;
-  for(let i=0;i<HM_SIZE;i++) raw[i]/=mx;
-  for(let i=0;i<HM_SIZE;i++){
+
+  // ── 3. Calcular energía de bajos vs altos con FFT simple ──
+  // Aproximación sin FFT real: comparamos bloques de frecuencias
+  // usando la diferencia entre varianza (≈altos) y energía media (≈bajos).
+  // Ratio: si la señal cambia mucho rápido = más frecuencias altas.
+  const bassEnergy = new Float32Array(N);
+  const highEnergy = new Float32Array(N);
+  const subSz = Math.max(2, Math.floor(blockSz/8)); // sub-bloques para estimar altos
+
+  for(let i=0;i<N;i++){
+    let totalE=0, localMax=0, localMin=Infinity, transitions=0;
+    for(let j=0;j<blockSz;j++){
+      const s=channelData[i*blockSz+j]||0;
+      const abs=Math.abs(s);
+      totalE+=abs;
+      if(abs>localMax) localMax=abs;
+      if(abs<localMin) localMin=abs;
+      // contar cruces de cero (proxy para frecuencia alta)
+      if(j>0){
+        const prev=channelData[i*blockSz+j-1]||0;
+        if((s>=0&&prev<0)||(s<0&&prev>=0)) transitions++;
+      }
+    }
+    const zcr = transitions / blockSz;  // zero-crossing rate ≈ contenido de altos
+    bassEnergy[i] = rms[i] * (1 - zcr); // bass: RMS con pocas transiciones
+    highEnergy[i] = rms[i] * zcr;       // high: RMS con muchas transiciones
+  }
+
+  // ── 4. Normalizar ambas bandas ─────────────────────────────
+  const maxB=Math.max(...bassEnergy)||1, maxH=Math.max(...highEnergy)||1;
+  for(let i=0;i<N;i++){
+    bassEnergy[i]/=maxB;
+    highEnergy[i]/=maxH;
+  }
+
+  // ── 5. Calcular pendiente (slope) por bloque ───────────────
+  // Audiosurf: calma → sube (slope positivo), intensidad/altos → baja
+  // slope = bajos - intensidadTotal*0.6 - altos*0.4
+  const slope = new Float32Array(N);
+  const maxRms=Math.max(...rms)||1;
+  for(let i=0;i<N;i++){
+    const intensity = rms[i]/maxRms;
+    slope[i] = bassEnergy[i]*0.4        // bajos contribuyen a SUBIR
+             - intensity*0.7            // intensidad general → bajar
+             - highEnergy[i]*0.3;       // altos → bajar un poco más
+  }
+
+  // ── 6. Suavizar la pendiente ───────────────────────────────
+  const smoothSlope = new Float32Array(N);
+  const W = HM_SMOOTH;
+  for(let i=0;i<N;i++){
     let sum=0;
-    for(let k=-HM_SMOOTH;k<=HM_SMOOTH;k++) sum+=raw[(i+k+HM_SIZE)%HM_SIZE];
-    heightMap[i]=sum/(HM_SMOOTH*2+1);
+    for(let k=-W;k<=W;k++) sum+=slope[(i+k+N)%N];
+    smoothSlope[i]=sum/(2*W+1);
   }
-  const avg=heightMap.reduce((a,b)=>a+b,0)/HM_SIZE;
-  for(let i=0;i<HM_SIZE;i++) heightMap[i]-=avg;
+
+  // ── 7. Integrar la pendiente → altura ─────────────────────
+  // La integral acumulada de la pendiente da la elevación.
+  // Esto es exactamente lo que hace Audiosurf internamente.
+  let acc=0;
+  for(let i=0;i<N;i++){
+    acc += smoothSlope[i];
+    heightMap[i] = acc;
+  }
+
+  // ── 8. Normalizar el heightMap a rango [-1, 1] ─────────────
+  const hmMax=Math.max(...heightMap.map(Math.abs))||1;
+  for(let i=0;i<N;i++) heightMap[i]/=hmMax;
+
+  // ── 9. Suavizado final leve para eliminar escalones ────────
+  const tmp = new Float32Array(N);
+  const W2 = 4;
+  for(let i=0;i<N;i++){
+    let s=0;
+    for(let k=-W2;k<=W2;k++) s+=heightMap[(i+k+N)%N];
+    tmp[i]=s/(2*W2+1);
+  }
+  heightMap.set(tmp);
   hmReady=true;
 }
 
 function buildDemoHeightMap(){
+  // Demo usa la misma lógica pero con una señal sintética que tiene
+  // secciones claras de calma (subida) y drops (bajada)
+  const fake = new Float32Array(HM_SIZE);
+  const BPM  = 128, beatsPerBar = 4;
+  const barsTotal = 32;
   for(let i=0;i<HM_SIZE;i++){
-    heightMap[i] = Math.sin(i/HM_SIZE*Math.PI*22)*0.44
-                 + Math.sin(i/HM_SIZE*Math.PI*9)*0.33
-                 + Math.sin(i/HM_SIZE*Math.PI*61)*0.23;
+    const t   = i/HM_SIZE;
+    const bar = Math.floor(t*barsTotal);
+    // Patrón: 2 bars calm → 2 bars buildup → 1 bar drop
+    const barPhase = bar % 5;
+    const baseAmp = barPhase < 2 ? 0.2 :   // calma = amplitud baja
+                    barPhase < 4 ? 0.5 :    // buildup
+                                   0.9;     // drop
+    const zcr = barPhase < 2 ? 0.05 :       // calma = bajos dominan
+                barPhase < 4 ? 0.25 :       // buildup = mixto
+                               0.55;        // drop = altos dominan
+    fake[i] = baseAmp * (1 - zcr) * (0.8 + Math.random()*0.2);
   }
-  const avg=heightMap.reduce((a,b)=>a+b,0)/HM_SIZE;
-  for(let i=0;i<HM_SIZE;i++) heightMap[i]-=avg;
-  hmReady=true;
+  buildHeightMap(fake, 44100);
 }
 
 // ── ESTADO MUTABLE ────────────────────────────────────────────
@@ -728,7 +811,7 @@ async function analyzeAudio(arrayBuf, onProg){
   const ch=decoded.getChannelData(0), sr=decoded.sampleRate;
 
   // Construir heightMap para el efecto montaña rusa
-  buildHeightMap(ch);
+  buildHeightMap(ch, decoded.sampleRate);
   const fSize=1024, hop=512, nF=Math.floor((ch.length-fSize)/hop);
   const energy=new Float32Array(nF);
   for(let i=0;i<nF;i++){
@@ -858,7 +941,7 @@ async function handleMidi(file,name){
   }
   setAnalyzeUI(true,'Generando carretera...',.85);
   // Height map para MIDI usando los datos sintetizados
-  buildHeightMap(buf.getChannelData(0));
+  buildHeightMap(buf.getChannelData(0), 44100);
   const bl=notes.filter((_,i)=>i%2===0).map((n,i)=>({
     time:n.tm,lane:Math.abs(n.pitch*7)%3,
     colorIdx:n.pitch%COLORS.length,pts:Math.round(100+(n.vel/127)*900),spawned:false}));
