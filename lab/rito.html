@@ -2,26 +2,57 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>EL RITO DEL AZAR</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>EL RITO DEL AZAR — Original</title>
     <style>
-        :root { --accent: #ff2350; --gold: #ffd700; --purple: #b478ff; --cyan: #32d2d2; }
-        body { margin: 0; background: #05050a; color: #fff; font-family: 'Arial', sans-serif; overflow: hidden; touch-action: none; user-select: none; }
-        canvas { display: block; width: 100vw; height: 100vh; }
+        @import url('https://fonts.googleapis.com/css2?family=Lexend:wght@400;700&display=swap');
         
-        #ui-layer { position: fixed; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; display: flex; flex-direction: column; align-items: center; justify-content: center; }
-        #menu { display: flex; flex-direction: column; gap: 15px; pointer-events: auto; }
-        .btn { 
-            background: rgba(180, 120, 255, 0.1); border: 2px solid var(--purple); 
-            color: #fff; padding: 18px 40px; font-weight: bold; border-radius: 8px;
-            cursor: pointer; min-width: 220px; transition: 0.2s; text-align: center;
-            letter-spacing: 2px; font-size: 1rem;
+        :root {
+            --bg: #05050c; --gold: #ffd700; --white: #f0f0f0;
+            --p1: rgb(210, 30, 90); --p2: rgb(255, 100, 10); --p3: rgb(255, 180, 50);
+            --p4: rgb(50, 210, 110); --p5: rgb(90, 210, 210); --p6: rgb(30, 160, 240);
         }
-        .btn:active { background: var(--purple); color: #000; transform: scale(0.95); }
+
+        body, html { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; 
+                     background: var(--bg); font-family: 'Lexend', sans-serif; color: var(--white); }
         
-        #game-ui { position: fixed; bottom: 40px; display: none; pointer-events: auto; }
-        .action-btn { background: var(--accent); color: #fff; border: none; padding: 20px 50px; border-radius: 50px; font-weight: 900; cursor: pointer; box-shadow: 0 0 20px rgba(255, 35, 80, 0.4); }
-        #btn-back { position: fixed; top: 20px; left: 20px; color: #555; background: none; border: 1px solid #333; padding: 5px 10px; cursor: pointer; pointer-events: auto; display: none; }
+        canvas { position: fixed; top: 0; left: 0; z-index: 1; }
+
+        /* Capa de Interfaz */
+        #ui-layer { position: relative; z-index: 10; width: 100%; height: 100%; 
+                    display: flex; flex-direction: column; align-items: center; justify-content: center;
+                    pointer-events: none; }
+        
+        .panel { 
+            background: rgba(15, 15, 30, 0.85); backdrop-filter: blur(10px);
+            border: 2px solid rgba(255, 255, 255, 0.1); border-radius: 25px;
+            padding: 30px; text-align: center; pointer-events: auto;
+            box-shadow: 0 20px 50px rgba(0,0,0,0.5); width: 85%; max-width: 400px;
+        }
+
+        h1 { font-size: 1.8rem; letter-spacing: 5px; margin-bottom: 30px; text-shadow: 0 0 15px var(--gold); }
+        
+        .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-top: 20px; }
+        
+        .btn-choice { 
+            background: rgba(30, 30, 50, 0.6); border: 2px solid #444; color: #fff;
+            padding: 15px; border-radius: 15px; cursor: pointer; font-weight: bold; transition: 0.2s;
+        }
+        .btn-choice:active { transform: scale(0.95); background: var(--gold); color: #000; }
+        .btn-choice.selected { border-color: var(--gold); box-shadow: 0 0 15px var(--gold); }
+
+        .btn-start { 
+            background: var(--gold); color: #000; border: none; padding: 18px 40px;
+            border-radius: 50px; font-weight: 900; margin-top: 30px; cursor: pointer;
+            width: 100%; letter-spacing: 2px;
+        }
+
+        #hud { position: fixed; top: 20px; left: 0; width: 100%; display: none; 
+               justify-content: space-around; font-weight: bold; z-index: 5; }
+        .player-score { padding: 5px 15px; border-radius: 20px; border: 1px solid rgba(255,255,255,0.2); }
+
+        #result-display { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); 
+                          z-index: 4; pointer-events: none; display: none; text-align: center; }
     </style>
 </head>
 <body>
@@ -29,164 +60,187 @@
 <canvas id="canvas"></canvas>
 
 <div id="ui-layer">
-    <div id="menu">
-        <h1 id="main-title" style="margin-bottom: 40px; letter-spacing: 8px;">EL RITO DEL AZAR</h1>
-        <div class="btn" onclick="initRitual('simple')">EL RITO</div>
-        <div class="btn" onclick="initRitual('cartas')">LAS CARTAS</div>
-        <div class="btn" onclick="initRitual('poly')">POLIEDROS</div>
-        <div class="btn" onclick="initRitual('revelatio')">REVELATIO</div>
+    <div id="setup-panel" class="panel">
+        <h1 id="title-anim">EL RITO DEL AZAR</h1>
+        <p style="font-size: 0.8rem; opacity: 0.6;">SELECCIONA EL MODO</p>
+        <div class="grid">
+            <button class="btn-choice" onclick="selectMode('simple', this)">EL RITO</button>
+            <button class="btn-choice" onclick="selectMode('cartas', this)">CARTAS</button>
+            <button class="btn-choice" onclick="selectMode('poly', this)">POLIEDROS</button>
+            <button class="btn-choice" onclick="selectMode('revelatio', this)">REVELATIO</button>
+        </div>
+        
+        <p style="font-size: 0.8rem; opacity: 0.6; margin-top: 25px;">JUGADORES</p>
+        <div class="grid" id="player-grid">
+            <button class="btn-choice" onclick="selectPlayers(1, this)">1</button>
+            <button class="btn-choice selected" onclick="selectPlayers(2, this)">2</button>
+        </div>
+        
+        <button class="btn-start" onclick="startRitual()">INICIAR RITO</button>
     </div>
 
-    <div id="game-ui">
-        <button class="action-btn" id="trigger" onclick="startSpin()">INICIAR RITO</button>
+    <div id="game-controls" style="display:none; pointer-events: auto; position: fixed; bottom: 50px;">
+        <button class="btn-start" id="btn-roll" onclick="roll()">LANZAR</button>
     </div>
 </div>
 
-<button id="btn-back" onclick="location.reload()">← VOLVER</button>
+<div id="hud"></div>
+<div id="result-display"></div>
 
 <script>
-const cvs = document.getElementById('canvas');
-const ctx = cvs.getContext('2d');
-let w, h, base, scale;
+    const cvs = document.getElementById('canvas');
+    const ctx = cvs.getContext('2d');
+    const PALETTE = [
+        'rgb(210, 30, 90)', 'rgb(255, 100, 10)', 'rgb(255, 180, 50)',
+        'rgb(50, 210, 110)', 'rgb(90, 210, 210)', 'rgb(30, 160, 240)'
+    ];
 
-// Configuración de celdas (CELL_COUNT = 900)
-const CELL_COUNT = 900;
-let cells = [];
-let angleX = 0, angleY = 0;
+    let w, h, base, scale, stars = [];
+    let state = 'setup'; // setup, idle, spin, collapse, reveal
+    let mode = 'simple', playerCount = 2, currentPlayer = 0;
+    let scores = [], players = [];
+    let cells = [], angleX = 0, angleY = 0;
+    let t0 = 0, currentResult = null;
 
-// Estados
-const IDLE = 0, SPIN = 1, COLLAPSE = 2, REVEAL = 3;
-let state = IDLE;
-let mode = 'simple';
-let t0 = 0;
-let results = [];
-let cardImages = {};
-
-// Diccionario de archivos (Original de cartas.py/revelatio.py)
-const VAL_TO_FILE = {1: "as", 11: "j", 12: "q", 13: "k", 20: "jk"};
-
-function setup() {
-    w = cvs.width = window.innerWidth;
-    h = cvs.height = window.innerHeight;
-    base = Math.min(w, h);
-    scale = base * 0.35;
-    
-    cells = [];
-    for(let i=0; i<CELL_COUNT; i++) {
-        cells.push({
-            x: Math.random() * 2 - 1,
-            y: Math.random() * 2 - 1,
-            z: Math.random() * 2 - 1,
-            h: 280 // Purple base
-        });
-    }
-    preloadCards();
-}
-
-function preloadCards() {
-    [1, 11, 12, 13, 20, ...Array.from({length: 9}, (_, i) => i + 2)].forEach(v => {
-        let img = new Image();
-        let name = VAL_TO_FILE[v] || v;
-        img.src = `art/${name}.png`;
-        cardImages[v] = img;
-    });
-}
-
-function project(c) {
-    let y1 = c.y * Math.cos(angleX) - c.z * Math.sin(angleX);
-    let z1 = c.y * Math.sin(angleX) + c.z * Math.cos(angleX);
-    let x2 = c.x * Math.cos(angleY) - z1 * Math.sin(angleY);
-    let z2 = c.x * Math.sin(angleY) + z1 * Math.cos(angleY);
-    let f = 1 / (2 - z2);
-    return { x: x2 * f * scale + w/2, y: y1 * f * scale + h/2, s: f * 3, z: z2 };
-}
-
-function initRitual(m) {
-    mode = m;
-    document.getElementById('menu').style.display = 'none';
-    document.getElementById('game-ui').style.display = 'block';
-    document.getElementById('btn-back').style.display = 'block';
-}
-
-function startSpin() {
-    if(state === IDLE || state === REVEAL) {
-        state = SPIN;
-        t0 = Date.now();
-        document.getElementById('trigger').style.visibility = 'hidden';
-    }
-}
-
-function getResult() {
-    if(mode === 'simple') return [Math.floor(Math.random()*6)+1];
-    if(mode === 'cartas') return [Math.random() < 0.08 ? 20 : Math.floor(Math.random()*13)+1];
-    if(mode === 'poly') return [Math.floor(Math.random()*20)+1]; // D20 por defecto
-    if(mode === 'revelatio') return [Math.floor(Math.random()*13)+1];
-    return [0];
-}
-
-function draw() {
-    ctx.fillStyle = state === COLLAPSE ? 'rgba(5,5,12,0.3)' : '#05050c';
-    ctx.fillRect(0,0,w,h);
-
-    let speed = state === SPIN ? 0.12 : 0.02;
-    angleX += speed; angleY += speed * 0.6;
-
-    cells.forEach(c => {
-        let p = project(c);
-        let lum = (p.z + 1) * 40;
-        ctx.fillStyle = `hsla(${c.h}, 70%, ${lum}%, ${(p.z+1)/2})`;
-        ctx.beginPath();
-        ctx.arc(p.x, p.y, p.s, 0, 7);
-        ctx.fill();
-    });
-
-    if(state === REVEAL) {
-        let res = results[0];
-        ctx.shadowBlur = 30; ctx.shadowColor = "gold";
+    function init() {
+        w = cvs.width = window.innerWidth;
+        h = cvs.height = window.innerHeight;
+        base = Math.min(w, h);
+        scale = base * 0.35;
         
-        if((mode === 'cartas' || mode === 'revelatio') && cardImages[res]?.complete && cardImages[res].naturalWidth !== 0) {
-            let img = cardImages[res];
-            let aspect = img.height / img.width;
-            let cw = base * 0.4;
-            ctx.drawImage(img, w/2 - cw/2, h/2 - (cw*aspect)/2, cw, cw*aspect);
+        stars = Array.from({length: 120}, () => ({
+            x: Math.random() * w, y: Math.random() * h, 
+            s: Math.random() * 3, v: Math.random() * 2 + 1
+        }));
+
+        cells = Array.from({length: 900}, () => ({
+            x: Math.random() * 2 - 1, y: Math.random() * 2 - 1, z: Math.random() * 2 - 1,
+            c: PALETTE[Math.floor(Math.random()*PALETTE.length)]
+        }));
+        
+        animate();
+    }
+
+    function selectMode(m, el) {
+        mode = m;
+        document.querySelectorAll('#setup-panel .btn-choice').forEach(b => b.classList.remove('selected'));
+        el.classList.add('selected');
+    }
+
+    function selectPlayers(n, el) {
+        playerCount = n;
+        document.querySelectorAll('#player-grid .btn-choice').forEach(b => b.classList.remove('selected'));
+        el.classList.add('selected');
+    }
+
+    function startRitual() {
+        document.getElementById('setup-panel').style.display = 'none';
+        document.getElementById('game-controls').style.display = 'block';
+        document.getElementById('hud').style.display = 'flex';
+        
+        scores = new Array(playerCount).fill(0);
+        updateHUD();
+        state = 'idle';
+    }
+
+    function updateHUD() {
+        const hud = document.getElementById('hud');
+        hud.innerHTML = scores.map((s, i) => `
+            <div class="player-score" style="color:${PALETTE[i]}; border-color:${i === currentPlayer ? PALETTE[i] : 'rgba(255,255,255,0.1)'}">
+                P${i+1}: ${s}
+            </div>
+        `).join('');
+    }
+
+    function roll() {
+        if(state === 'idle' || state === 'reveal') {
+            state = 'spin';
+            t0 = Date.now();
+            document.getElementById('btn-roll').style.visibility = 'hidden';
+            document.getElementById('result-display').style.display = 'none';
+        }
+    }
+
+    function animate() {
+        ctx.fillStyle = (state === 'collapse') ? 'rgba(5, 5, 12, 0.4)' : '#05050c';
+        ctx.fillRect(0, 0, w, h);
+
+        // Estrellas (Fondo original)
+        ctx.fillStyle = '#fff';
+        stars.forEach(s => {
+            ctx.beginPath();
+            ctx.arc(s.x, s.y, s.s, 0, 7);
+            ctx.fill();
+            s.y += s.v * 0.2; if(s.y > h) s.y = 0;
+        });
+
+        // Rotación de celdas
+        let rot = (state === 'spin') ? 0.12 : 0.02;
+        angleX += rot; angleY += rot * 0.6;
+
+        cells.forEach(c => {
+            let y1 = c.y * Math.cos(angleX) - c.z * Math.sin(angleX);
+            let z1 = c.y * Math.sin(angleX) + c.z * Math.cos(angleX);
+            let x2 = c.x * Math.cos(angleY) - z1 * Math.sin(angleY);
+            let z2 = c.x * Math.sin(angleY) + z1 * Math.cos(angleY);
+            let f = 1 / (2 - z2);
+            let px = x2 * f * scale + w/2;
+            let py = y1 * f * scale + h/2;
+            
+            ctx.fillStyle = c.c;
+            ctx.globalAlpha = (z2 + 1) / 2;
+            ctx.fillRect(px, py, f*3, f*3);
+        });
+        ctx.globalAlpha = 1;
+
+        // Máquina de estados
+        if(state === 'spin' && Date.now() - t0 > 1400) { state = 'collapse'; t0 = Date.now(); }
+        if(state === 'collapse') {
+            scale *= 0.88;
+            if(Date.now() - t0 > 350) {
+                // Cálculo de resultado según modo original
+                if(mode === 'simple') currentResult = Math.floor(Math.random()*6)+1;
+                else if(mode === 'cartas') currentResult = Math.random() < 0.08 ? 20 : Math.floor(Math.random()*13)+1;
+                else if(mode === 'poly') currentResult = Math.floor(Math.random()*20)+1;
+                else currentResult = Math.floor(Math.random()*13)+1;
+
+                scores[currentPlayer] += (typeof currentResult === 'number' ? currentResult : 10);
+                state = 'reveal';
+                scale = base * 0.35;
+                showResult();
+            }
+        }
+
+        // Título animado
+        if(state === 'setup') {
+            let p = Math.sin(Date.now()*0.005)*10;
+            document.getElementById('title-anim').style.transform = `translateY(${p}px)`;
+        }
+
+        requestAnimationFrame(animate);
+    }
+
+    function showResult() {
+        const rd = document.getElementById('result-display');
+        rd.style.display = 'block';
+        
+        let val = currentResult;
+        let name = (val === 1) ? 'as' : (val === 11 ? 'j' : (val === 12 ? 'q' : (val === 13 ? 'k' : (val === 20 ? 'jk' : val))));
+        
+        if(mode === 'cartas' || mode === 'revelatio') {
+            rd.innerHTML = `<img src="art/${name}.png" style="width:${base*0.4}px; filter: drop-shadow(0 0 20px gold);" onerror="this.outerHTML='<h1 style=\'font-size:5rem; color:gold\'>${name.toUpperCase()}</h1>'">`;
         } else {
-            ctx.fillStyle = "#ffd700";
-            ctx.font = `bold ${base*0.2}px Arial`;
-            ctx.textAlign = "center"; ctx.textBaseline = "middle";
-            let label = (res === 20) ? "JK" : (res === 1 ? "AS" : res);
-            ctx.fillText(label, w/2, h/2);
+            rd.innerHTML = `<h1 style="font-size:8rem; color:var(--gold); text-shadow: 0 0 30px gold;">${val}</h1>`;
         }
-        ctx.shadowBlur = 0;
+
+        document.getElementById('btn-roll').style.visibility = 'visible';
+        document.getElementById('btn-roll').innerText = "SIGUIENTE TURNO";
+        currentPlayer = (currentPlayer + 1) % playerCount;
+        updateHUD();
     }
 
-    // Lógica de Tiempos (Originales)
-    if(state === SPIN && Date.now() - t0 > 1400) {
-        state = COLLAPSE; t0 = Date.now();
-    }
-    if(state === COLLAPSE) {
-        scale *= 0.88;
-        if(Date.now() - t0 > 350) {
-            results = getResult();
-            state = REVEAL;
-            scale = base * 0.35;
-            document.getElementById('trigger').style.visibility = 'visible';
-            document.getElementById('trigger').innerText = "OTRO RITO";
-        }
-    }
-    
-    // Pulso del título si está visible
-    if(document.getElementById('menu').style.display !== 'none') {
-        let p = Math.sin(Date.now()*0.005)*8;
-        document.getElementById('main-title').style.transform = `translateY(${p}px)`;
-    }
-
-    requestAnimationFrame(draw);
-}
-
-window.addEventListener('resize', setup);
-setup();
-draw();
+    window.addEventListener('resize', init);
+    init();
 </script>
 </body>
 </html>
-
