@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>EL RITO DEL AZAR</title>
+    <style>
+        :root { --accent: #ff2350; --gold: #ffd700; --purple: #b478ff; --cyan: #32d2d2; }
+        body { margin: 0; background: #05050a; color: #fff; font-family: 'Arial', sans-serif; overflow: hidden; touch-action: none; user-select: none; }
+        canvas { display: block; width: 100vw; height: 100vh; }
+        
+        #ui-layer { position: fixed; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+        #menu { display: flex; flex-direction: column; gap: 15px; pointer-events: auto; }
+        .btn { 
+            background: rgba(180, 120, 255, 0.1); border: 2px solid var(--purple); 
+            color: #fff; padding: 18px 40px; font-weight: bold; border-radius: 8px;
+            cursor: pointer; min-width: 220px; transition: 0.2s; text-align: center;
+            letter-spacing: 2px; font-size: 1rem;
+        }
+        .btn:active { background: var(--purple); color: #000; transform: scale(0.95); }
+        
+        #game-ui { position: fixed; bottom: 40px; display: none; pointer-events: auto; }
+        .action-btn { background: var(--accent); color: #fff; border: none; padding: 20px 50px; border-radius: 50px; font-weight: 900; cursor: pointer; box-shadow: 0 0 20px rgba(255, 35, 80, 0.4); }
+        #btn-back { position: fixed; top: 20px; left: 20px; color: #555; background: none; border: 1px solid #333; padding: 5px 10px; cursor: pointer; pointer-events: auto; display: none; }
+    </style>
+</head>
+<body>
+
+<canvas id="canvas"></canvas>
+
+<div id="ui-layer">
+    <div id="menu">
+        <h1 id="main-title" style="margin-bottom: 40px; letter-spacing: 8px;">EL RITO DEL AZAR</h1>
+        <div class="btn" onclick="initRitual('simple')">EL RITO</div>
+        <div class="btn" onclick="initRitual('cartas')">LAS CARTAS</div>
+        <div class="btn" onclick="initRitual('poly')">POLIEDROS</div>
+        <div class="btn" onclick="initRitual('revelatio')">REVELATIO</div>
+    </div>
+
+    <div id="game-ui">
+        <button class="action-btn" id="trigger" onclick="startSpin()">INICIAR RITO</button>
+    </div>
+</div>
+
+<button id="btn-back" onclick="location.reload()">← VOLVER</button>
+
+<script>
+const cvs = document.getElementById('canvas');
+const ctx = cvs.getContext('2d');
+let w, h, base, scale;
+
+// Configuración de celdas (CELL_COUNT = 900)
+const CELL_COUNT = 900;
+let cells = [];
+let angleX = 0, angleY = 0;
+
+// Estados
+const IDLE = 0, SPIN = 1, COLLAPSE = 2, REVEAL = 3;
+let state = IDLE;
+let mode = 'simple';
+let t0 = 0;
+let results = [];
+let cardImages = {};
+
+// Diccionario de archivos (Original de cartas.py/revelatio.py)
+const VAL_TO_FILE = {1: "as", 11: "j", 12: "q", 13: "k", 20: "jk"};
+
+function setup() {
+    w = cvs.width = window.innerWidth;
+    h = cvs.height = window.innerHeight;
+    base = Math.min(w, h);
+    scale = base * 0.35;
+    
+    cells = [];
+    for(let i=0; i<CELL_COUNT; i++) {
+        cells.push({
+            x: Math.random() * 2 - 1,
+            y: Math.random() * 2 - 1,
+            z: Math.random() * 2 - 1,
+            h: 280 // Purple base
+        });
+    }
+    preloadCards();
+}
+
+function preloadCards() {
+    [1, 11, 12, 13, 20, ...Array.from({length: 9}, (_, i) => i + 2)].forEach(v => {
+        let img = new Image();
+        let name = VAL_TO_FILE[v] || v;
+        img.src = `art/${name}.png`;
+        cardImages[v] = img;
+    });
+}
+
+function project(c) {
+    let y1 = c.y * Math.cos(angleX) - c.z * Math.sin(angleX);
+    let z1 = c.y * Math.sin(angleX) + c.z * Math.cos(angleX);
+    let x2 = c.x * Math.cos(angleY) - z1 * Math.sin(angleY);
+    let z2 = c.x * Math.sin(angleY) + z1 * Math.cos(angleY);
+    let f = 1 / (2 - z2);
+    return { x: x2 * f * scale + w/2, y: y1 * f * scale + h/2, s: f * 3, z: z2 };
+}
+
+function initRitual(m) {
+    mode = m;
+    document.getElementById('menu').style.display = 'none';
+    document.getElementById('game-ui').style.display = 'block';
+    document.getElementById('btn-back').style.display = 'block';
+}
+
+function startSpin() {
+    if(state === IDLE || state === REVEAL) {
+        state = SPIN;
+        t0 = Date.now();
+        document.getElementById('trigger').style.visibility = 'hidden';
+    }
+}
+
+function getResult() {
+    if(mode === 'simple') return [Math.floor(Math.random()*6)+1];
+    if(mode === 'cartas') return [Math.random() < 0.08 ? 20 : Math.floor(Math.random()*13)+1];
+    if(mode === 'poly') return [Math.floor(Math.random()*20)+1]; // D20 por defecto
+    if(mode === 'revelatio') return [Math.floor(Math.random()*13)+1];
+    return [0];
+}
+
+function draw() {
+    ctx.fillStyle = state === COLLAPSE ? 'rgba(5,5,12,0.3)' : '#05050c';
+    ctx.fillRect(0,0,w,h);
+
+    let speed = state === SPIN ? 0.12 : 0.02;
+    angleX += speed; angleY += speed * 0.6;
+
+    cells.forEach(c => {
+        let p = project(c);
+        let lum = (p.z + 1) * 40;
+        ctx.fillStyle = `hsla(${c.h}, 70%, ${lum}%, ${(p.z+1)/2})`;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.s, 0, 7);
+        ctx.fill();
+    });
+
+    if(state === REVEAL) {
+        let res = results[0];
+        ctx.shadowBlur = 30; ctx.shadowColor = "gold";
+        
+        if((mode === 'cartas' || mode === 'revelatio') && cardImages[res]?.complete && cardImages[res].naturalWidth !== 0) {
+            let img = cardImages[res];
+            let aspect = img.height / img.width;
+            let cw = base * 0.4;
+            ctx.drawImage(img, w/2 - cw/2, h/2 - (cw*aspect)/2, cw, cw*aspect);
+        } else {
+            ctx.fillStyle = "#ffd700";
+            ctx.font = `bold ${base*0.2}px Arial`;
+            ctx.textAlign = "center"; ctx.textBaseline = "middle";
+            let label = (res === 20) ? "JK" : (res === 1 ? "AS" : res);
+            ctx.fillText(label, w/2, h/2);
+        }
+        ctx.shadowBlur = 0;
+    }
+
+    // Lógica de Tiempos (Originales)
+    if(state === SPIN && Date.now() - t0 > 1400) {
+        state = COLLAPSE; t0 = Date.now();
+    }
+    if(state === COLLAPSE) {
+        scale *= 0.88;
+        if(Date.now() - t0 > 350) {
+            results = getResult();
+            state = REVEAL;
+            scale = base * 0.35;
+            document.getElementById('trigger').style.visibility = 'visible';
+            document.getElementById('trigger').innerText = "OTRO RITO";
+        }
+    }
+    
+    // Pulso del título si está visible
+    if(document.getElementById('menu').style.display !== 'none') {
+        let p = Math.sin(Date.now()*0.005)*8;
+        document.getElementById('main-title').style.transform = `translateY(${p}px)`;
+    }
+
+    requestAnimationFrame(draw);
+}
+
+window.addEventListener('resize', setup);
+setup();
+draw();
+</script>
+</body>
+</html>
+
