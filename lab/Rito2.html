@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>EL RITO DEL AZAR — Central</title>
+    <style>
+        :root {
+            --bg: #05050c; --gold: #ffd700; --white: #f5f5f5;
+            --p1: rgb(210, 30, 90); --p2: rgb(255, 100, 10); --p3: rgb(255, 180, 50);
+            --p4: rgb(50, 210, 110); --p5: rgb(90, 210, 210); --p6: rgb(30, 160, 240);
+        }
+        body, html { margin:0; padding:0; width:100%; height:100%; overflow:hidden; background:var(--bg); font-family: Arial, sans-serif; color: var(--white); }
+        canvas { position: fixed; top:0; left:0; z-index:1; }
+        
+        #ui { position:relative; z-index:10; width:100%; height:100%; display:flex; flex-direction:column; align-items:center; justify-content:center; pointer-events:none; }
+        .glass-panel { 
+            background: rgba(10, 10, 25, 0.9); backdrop-filter: blur(12px);
+            border: 2px solid rgba(255, 255, 255, 0.1); border-radius: 24px;
+            padding: 35px; text-align: center; pointer-events: auto;
+            width: 85%; max-width: 380px; box-shadow: 0 15px 40px rgba(0,0,0,0.8);
+        }
+        
+        h1 { font-weight: 900; letter-spacing: 6px; color: var(--gold); margin-bottom: 30px; }
+        .label { font-size: 0.75rem; letter-spacing: 3px; opacity: 0.5; margin: 15px 0 10px; text-transform: uppercase; }
+        
+        .opt-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
+        .btn-opt { 
+            background: rgba(255,255,255,0.05); border: 1.5px solid rgba(255,255,255,0.2); 
+            color: #fff; padding: 14px; border-radius: 12px; cursor: pointer; 
+            font-weight: bold; font-size: 0.9rem; transition: 0.2s;
+        }
+        .btn-opt.active { border-color: var(--gold); background: rgba(255,215,0,0.15); box-shadow: 0 0 15px rgba(255,215,0,0.2); }
+        
+        .btn-main { 
+            background: var(--gold); color: #000; border: none; padding: 20px;
+            border-radius: 50px; font-weight: 900; margin-top: 30px; cursor: pointer;
+            width: 100%; letter-spacing: 2px; text-transform: uppercase;
+        }
+
+        #hud { position: fixed; top: 25px; width: 100%; display: none; justify-content: center; gap: 15px; z-index: 100; pointer-events: none; }
+        .score-box { padding: 10px 20px; border-radius: 50px; background: rgba(0,0,0,0.5); border: 2px solid transparent; transition: 0.3s; font-weight: 900; }
+        
+        #result { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 5; text-align: center; pointer-events: none; }
+    </style>
+</head>
+<body>
+
+<canvas id="ritual"></canvas>
+
+<div id="ui">
+    <div id="menu" class="glass-panel">
+        <h1 id="title">EL RITO</h1>
+        
+        <div class="label">Modo</div>
+        <div class="opt-grid" id="mode-select">
+            <button class="btn-opt active" onclick="setMode('simple', this)">Rito</button>
+            <button class="btn-opt" onclick="setMode('cartas', this)">Cartas</button>
+            <button class="btn-opt" onclick="setMode('poly', this)">Poly</button>
+            <button class="btn-opt" onclick="setMode('revelatio', this)">Revelatio</button>
+        </div>
+
+        <div class="label" id="qty-label">Personajes</div>
+        <div class="opt-grid" id="player-select">
+            <button class="btn-opt active" onclick="setPlayers(1, this)">1</button>
+            <button class="btn-opt" onclick="setPlayers(2, this)">2</button>
+        </div>
+
+        <button class="btn-main" onclick="initGame()">Comenzar</button>
+    </div>
+
+    <div id="game-ui" style="display:none; pointer-events: auto; position: fixed; bottom: 40px;">
+        <button class="btn-main" style="width: 200px;" id="roll-btn" onclick="executeRoll()">Lanzar</button>
+    </div>
+</div>
+
+<div id="hud"></div>
+<div id="result"></div>
+
+<script>
+    const canvas = document.getElementById('ritual');
+    const ctx = canvas.getContext('2d');
+    const PALETTE = ['#d21e5a', '#ff640a', '#ffb432', '#32d26e', '#5ad2d2', '#1ea0f0'];
+    
+    let w, h, base, scale, state = 'menu';
+    let mode = 'simple', players = 1, turn = 0, scores = [];
+    let cells = [], stars = [], angleX = 0, angleY = 0;
+    let t0 = 0, res = null;
+
+    function resize() {
+        w = canvas.width = window.innerWidth;
+        h = canvas.height = window.innerHeight;
+        base = Math.min(w, h);
+        scale = base * 0.35;
+        stars = Array.from({length: 100}, () => ({ x: Math.random()*w, y: Math.random()*h, s: Math.random()*2, v: Math.random()+0.5 }));
+    }
+
+    function createCells() {
+        cells = Array.from({length: 900}, () => ({
+            x: Math.random()*2-1, y: Math.random()*2-1, z: Math.random()*2-1,
+            c: PALETTE[Math.floor(Math.random()*PALETTE.length)]
+        }));
+    }
+
+    function setMode(m, btn) {
+        mode = m;
+        document.querySelectorAll('#mode-select .btn-opt').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        document.getElementById('qty-label').innerText = (m === 'simple') ? 'Dados' : 'Personajes';
+    }
+
+    function setPlayers(n, btn) {
+        players = n;
+        document.querySelectorAll('#player-select .btn-opt').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+    }
+
+    function initGame() {
+        document.getElementById('menu').style.display = 'none';
+        document.getElementById('game-ui').style.display = 'block';
+        document.getElementById('hud').style.display = 'flex';
+        scores = new Array(players).fill(0);
+        state = 'idle';
+        updateHUD();
+    }
+
+    function updateHUD() {
+        const hud = document.getElementById('hud');
+        hud.innerHTML = scores.map((s, i) => `
+            <div class="score-box" style="color:${PALETTE[i]}; border-color:${i === turn ? PALETTE[i] : 'transparent'}">
+                P${i+1}: ${s}
+            </div>
+        `).join('');
+    }
+
+    function executeRoll() {
+        if(state === 'idle' || state === 'reveal') {
+            state = 'spin'; t0 = Date.now();
+            document.getElementById('roll-btn').style.visibility = 'hidden';
+            document.getElementById('result').innerHTML = '';
+        }
+    }
+
+    function loop() {
+        ctx.fillStyle = (state === 'collapse') ? 'rgba(5,5,15,0.3)' : '#05050f';
+        ctx.fillRect(0,0,w,h);
+
+        // Stars
+        ctx.fillStyle = '#fff';
+        stars.forEach(s => { ctx.fillRect(s.x, s.y, s.s, s.s); s.y += s.v; if(s.y > h) s.y = 0; });
+
+        // Logic
+        let rSpeed = (state === 'spin') ? 0.12 : 0.02;
+        angleX += rSpeed; angleY += rSpeed * 0.6;
+        
+        cells.forEach(c => {
+            let y1 = c.y * Math.cos(angleX) - c.z * Math.sin(angleX);
+            let z1 = c.y * Math.sin(angleX) + c.z * Math.cos(angleX);
+            let x2 = c.x * Math.cos(angleY) - z1 * Math.sin(angleY);
+            let z2 = c.x * Math.sin(angleY) + z1 * Math.cos(angleY);
+            let f = 1 / (2 - z2);
+            ctx.fillStyle = c.c; ctx.globalAlpha = (z2+1)/2;
+            ctx.fillRect(x2*f*scale+w/2, y1*f*scale+h/2, f*3, f*3);
+        });
+        ctx.globalAlpha = 1;
+
+        if(state === 'spin' && Date.now()-t0 > 1400) { state = 'collapse'; t0 = Date.now(); }
+        if(state === 'collapse') {
+            scale *= 0.88;
+            if(Date.now()-t0 > 350) {
+                if(mode === 'cartas') res = Math.random() < 0.08 ? 20 : Math.floor(Math.random()*13)+1;
+                else if(mode === 'simple') res = Math.floor(Math.random()*6)+1;
+                else res = Math.floor(Math.random()*20)+1;
+                
+                scores[turn] += (res === 20 ? 50 : res);
+                state = 'reveal'; scale = base * 0.35; showRes();
+            }
+        }
+        requestAnimationFrame(loop);
+    }
+
+    function showRes() {
+        const rd = document.getElementById('result');
+        let name = (res === 1) ? 'as' : (res === 11 ? 'j' : (res === 12 ? 'q' : (res === 13 ? 'k' : (res === 20 ? 'jk' : res))));
+        if(mode === 'cartas' || mode === 'revelatio') {
+            rd.innerHTML = `<img src="art/${name}.png" style="width:${base*0.45}px; filter: drop-shadow(0 0 20px gold);" onerror="this.outerHTML='<h1 style=\'font-size:6rem; color:gold\'>${name.toUpperCase()}</h1>'">`;
+        } else {
+            rd.innerHTML = `<h1 style="font-size:10rem; color:var(--gold); text-shadow: 0 0 40px gold;">${res}</h1>`;
+        }
+        document.getElementById('roll-btn').style.visibility = 'visible';
+        document.getElementById('roll-btn').innerText = "Siguiente";
+        turn = (turn + 1) % players;
+        updateHUD();
+    }
+
+    window.onresize = resize;
+    resize(); createCells(); loop();
+</script>
+</body>
+  </html>
+
