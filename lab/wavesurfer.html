@@ -248,139 +248,130 @@ const MISS_Z    = 7;
 const LOOK      = 7;
 const COLORS    = [0xff3366,0x33ff99,0xffcc00,0x00ccff,0xff6600,0xcc33ff];
 
-// ── HEIGHT MAP (algoritmo estilo Audiosurf real) ──────────────
-// Fuente: análisis del algoritmo de Dylan Fitterer:
-//   - Bajos/volumen bajo  → pendiente HACIA ARRIBA (tranquilo = subida)
-//   - Intensidad alta / altos → pendiente HACIA ABAJO (drop = bajada)
-//   - El heightMap es la INTEGRAL de la pendiente (acumulada a lo largo del tiempo)
-// Así las partes calmas acumulan altura y los drops descienden bruscamente.
-const HM_SIZE   = 4096;
-const HM_AMP    = 7.0;   // metros máximos de excursión
-const HM_SMOOTH = 8;     // suavizado ligero (la integral ya suaviza bastante)
-let heightMap   = new Float32Array(HM_SIZE);
-let hmReady     = false;
+// ── HEIGHT MAP (estilo Audiosurf real) ───────────────────────
+// Inspirado en Dylan Fitterer + técnica de eter:
+// La altura es una FUNCIÓN EN TIEMPO REAL, no un array pregenerado.
+// Cada tile usa su worldZ como fase de una onda senoidal,
+// modulada por bass y mid del analyser en vivo.
+//
+// Variables de audio en tiempo real (actualizadas en el game loop):
+let rtBass  = 0;   // energía de bajos 0..1 (suavizada)
+let rtMid   = 0;   // energía de medios 0..1 (suavizada)
+let rtHigh  = 0;   // energía de altos 0..1 (suavizada)
+let rtVol   = 0;   // volumen general 0..1 (suavizado)
+let wavePhase = 0; // fase acumulada de la ola (avanza con roadOff)
 
+// Frecuencias de la ola: la ola "lenta" (montañas grandes) y "rápida" (pequeñas)
+const WAVE_FREQ_SLOW = 0.012;  // ciclos por unidad Z — montañas grandes
+const WAVE_FREQ_FAST = 0.038;  // ciclos por unidad Z — bumps rápidos
+const WAVE_AMP       = 7.5;    // amplitud máxima en unidades world
+
+// hAt(worldZ): devuelve la Y del road en esa posición Z del mundo.
+// Usa la Z como fase + tiempo acumulado (wavePhase) para que la ola "viaje".
+// - bass eleva la ola (secciones tranquilas con bajos → subida)
+// - high+vol bajan la ola (drops, frenetismo → bajada)
 function hAt(worldZ){
-  if(!hmReady) return 0;
-  const tilesCursor    = roadOff / SEG;
-  const tilesFromShip  = -worldZ / SEG;
-  const idx = Math.round(tilesCursor + tilesFromShip);
-  return heightMap[((idx % HM_SIZE) + HM_SIZE) % HM_SIZE] * HM_AMP;
+  const z = worldZ;
+  // Ola principal: desplazada por wavePhase (avanza con el road)
+  const slow = Math.sin(z * WAVE_FREQ_SLOW + wavePhase * 0.18);
+  const fast  = Math.sin(z * WAVE_FREQ_FAST + wavePhase * 0.55) * 0.35;
+
+  // Modulación por frecuencias (corazón del algoritmo Audiosurf):
+  // bass hace que la ola SUBA (partes tranquilas = subida)
+  // high+vol hace que la ola BAJE (drops = bajada dramática)
+  const bassLift  =  rtBass * 1.4;   // bajos → subir
+  const dropPull  = -(rtHigh * 0.9 + rtVol * 0.7);  // altos+volumen → bajar
+
+  return (slow + fast + bassLift + dropPull) * WAVE_AMP;
 }
 
+// Actualiza las variables de audio en tiempo real desde el analyser
+const _fBuf = new Uint8Array(256);
+function updateRT(){
+  if(!analyser) return;
+  analyser.fftSize = 512;
+  analyser.getByteFrequencyData(_fBuf);
+
+  // Bandas: bass 0-3, mid 4-12, high 13-40 (bins de 512/2=256 slots, ~86Hz cada uno)
+  let b=0, m=0, h=0;
+  for(let i=0;i<4;i++)  b+=_fBuf[i];
+  for(let i=4;i<13;i++) m+=_fBuf[i];
+  for(let i=13;i<40;i++) h+=_fBuf[i];
+  b=b/(4*255); m=m/(9*255); h=h/(27*255);
+
+  // Suavizado exponencial (inercia distinta para subir vs bajar)
+  const up=0.15, dn=0.06;
+  rtBass = b > rtBass ? rtBass+(b-rtBass)*up : rtBass+(b-rtBass)*dn;
+  rtMid  = m > rtMid  ? rtMid +(m-rtMid )*up : rtMid +(m-rtMid )*dn;
+  rtHigh = h > rtHigh ? rtHigh+(h-rtHigh)*up : rtHigh+(h-rtHigh)*dn;
+  rtVol  = (rtBass+rtMid+rtHigh)/3;
+}
+
+// Para análisis offline (archivo de audio) — construye un perfil de bass/high
+// en el tiempo y lo guarda para reproducir de forma determinista.
+// Pero también funciona sin él (modo tiempo real puro).
+const HM_SIZE = 4096;
+let hmReady   = false;
+let hmBass    = null;  // Float32Array[HM_SIZE] — perfil de bass en el tiempo
+let hmHigh    = null;  // Float32Array[HM_SIZE] — perfil de high en el tiempo
+
 function buildHeightMap(channelData, sampleRate){
-  // ── 1. Separar en bloques temporales ──────────────────────
   const blockSz = Math.max(1, Math.floor(channelData.length / HM_SIZE));
-  const N = HM_SIZE;
+  hmBass = new Float32Array(HM_SIZE);
+  hmHigh = new Float32Array(HM_SIZE);
 
-  // ── 2. Calcular energía RMS total por bloque ───────────────
-  const rms = new Float32Array(N);
-  for(let i=0;i<N;i++){
-    let e=0;
-    for(let j=0;j<blockSz;j++){const s=channelData[i*blockSz+j]||0;e+=s*s;}
-    rms[i]=Math.sqrt(e/blockSz);
-  }
-
-  // ── 3. Calcular energía de bajos vs altos con FFT simple ──
-  // Aproximación sin FFT real: comparamos bloques de frecuencias
-  // usando la diferencia entre varianza (≈altos) y energía media (≈bajos).
-  // Ratio: si la señal cambia mucho rápido = más frecuencias altas.
-  const bassEnergy = new Float32Array(N);
-  const highEnergy = new Float32Array(N);
-  const subSz = Math.max(2, Math.floor(blockSz/8)); // sub-bloques para estimar altos
-
-  for(let i=0;i<N;i++){
-    let totalE=0, localMax=0, localMin=Infinity, transitions=0;
+  for(let i=0;i<HM_SIZE;i++){
+    let bass=0, transitions=0, total=0;
     for(let j=0;j<blockSz;j++){
       const s=channelData[i*blockSz+j]||0;
-      const abs=Math.abs(s);
-      totalE+=abs;
-      if(abs>localMax) localMax=abs;
-      if(abs<localMin) localMin=abs;
-      // contar cruces de cero (proxy para frecuencia alta)
-      if(j>0){
-        const prev=channelData[i*blockSz+j-1]||0;
-        if((s>=0&&prev<0)||(s<0&&prev>=0)) transitions++;
-      }
+      total+=s*s;
+      if(j>0){const p=channelData[i*blockSz+j-1]||0;if((s>=0)!==(p>=0))transitions++;}
     }
-    const zcr = transitions / blockSz;  // zero-crossing rate ≈ contenido de altos
-    bassEnergy[i] = rms[i] * (1 - zcr); // bass: RMS con pocas transiciones
-    highEnergy[i] = rms[i] * zcr;       // high: RMS con muchas transiciones
+    const rms=Math.sqrt(total/blockSz);
+    const zcr=transitions/blockSz;
+    hmBass[i]=rms*(1-zcr*3);   // bajo ZCR = más bajos
+    hmHigh[i]=rms*zcr*3;       // alto ZCR = más altos
   }
-
-  // ── 4. Normalizar ambas bandas ─────────────────────────────
-  const maxB=Math.max(...bassEnergy)||1, maxH=Math.max(...highEnergy)||1;
-  for(let i=0;i<N;i++){
-    bassEnergy[i]/=maxB;
-    highEnergy[i]/=maxH;
-  }
-
-  // ── 5. Calcular pendiente (slope) por bloque ───────────────
-  // Audiosurf: calma → sube (slope positivo), intensidad/altos → baja
-  // slope = bajos - intensidadTotal*0.6 - altos*0.4
-  const slope = new Float32Array(N);
-  const maxRms=Math.max(...rms)||1;
-  for(let i=0;i<N;i++){
-    const intensity = rms[i]/maxRms;
-    slope[i] = bassEnergy[i]*0.4        // bajos contribuyen a SUBIR
-             - intensity*0.7            // intensidad general → bajar
-             - highEnergy[i]*0.3;       // altos → bajar un poco más
-  }
-
-  // ── 6. Suavizar la pendiente ───────────────────────────────
-  const smoothSlope = new Float32Array(N);
-  const W = HM_SMOOTH;
-  for(let i=0;i<N;i++){
-    let sum=0;
-    for(let k=-W;k<=W;k++) sum+=slope[(i+k+N)%N];
-    smoothSlope[i]=sum/(2*W+1);
-  }
-
-  // ── 7. Integrar la pendiente → altura ─────────────────────
-  // La integral acumulada de la pendiente da la elevación.
-  // Esto es exactamente lo que hace Audiosurf internamente.
-  let acc=0;
-  for(let i=0;i<N;i++){
-    acc += smoothSlope[i];
-    heightMap[i] = acc;
-  }
-
-  // ── 8. Normalizar el heightMap a rango [-1, 1] ─────────────
-  const hmMax=Math.max(...heightMap.map(Math.abs))||1;
-  for(let i=0;i<N;i++) heightMap[i]/=hmMax;
-
-  // ── 9. Suavizado final leve para eliminar escalones ────────
-  const tmp = new Float32Array(N);
-  const W2 = 4;
-  for(let i=0;i<N;i++){
-    let s=0;
-    for(let k=-W2;k<=W2;k++) s+=heightMap[(i+k+N)%N];
-    tmp[i]=s/(2*W2+1);
-  }
-  heightMap.set(tmp);
+  // Suavizar ambos
+  const smooth=(arr,w)=>{
+    const out=new Float32Array(HM_SIZE);
+    for(let i=0;i<HM_SIZE;i++){
+      let s=0; for(let k=-w;k<=w;k++) s+=arr[(i+k+HM_SIZE)%HM_SIZE];
+      out[i]=s/(2*w+1);
+    }
+    return out;
+  };
+  hmBass=smooth(hmBass,12);
+  hmHigh=smooth(hmHigh,12);
+  const mb=Math.max(...hmBass)||1, mh=Math.max(...hmHigh)||1;
+  for(let i=0;i<HM_SIZE;i++){hmBass[i]/=mb; hmHigh[i]/=mh;}
   hmReady=true;
 }
 
+// Obtiene bass/high del perfil offline según el tiempo de la canción
+function getOfflineRT(){
+  if(!hmReady||!hmBass) return;
+  const ct = actx ? actx.currentTime-audioStart : 0;
+  const pct = songDur>0 ? Math.min(1,ct/songDur) : 0;
+  const idx = Math.floor(pct*HM_SIZE);
+  // Mezcla 50/50: offline (determina la forma) + tiempo real (reactivo)
+  rtBass = (hmBass[idx]*0.6 + rtBass*0.4);
+  rtHigh = (hmHigh[idx]*0.6 + rtHigh*0.4);
+  rtVol  = (rtBass+rtHigh)/2;
+}
+
 function buildDemoHeightMap(){
-  // Demo usa la misma lógica pero con una señal sintética que tiene
-  // secciones claras de calma (subida) y drops (bajada)
-  const fake = new Float32Array(HM_SIZE);
-  const BPM  = 128, beatsPerBar = 4;
-  const barsTotal = 32;
+  // Demo: generamos un perfil sintético con estructura musical clara
+  hmBass = new Float32Array(HM_SIZE);
+  hmHigh = new Float32Array(HM_SIZE);
   for(let i=0;i<HM_SIZE;i++){
-    const t   = i/HM_SIZE;
-    const bar = Math.floor(t*barsTotal);
-    // Patrón: 2 bars calm → 2 bars buildup → 1 bar drop
-    const barPhase = bar % 5;
-    const baseAmp = barPhase < 2 ? 0.2 :   // calma = amplitud baja
-                    barPhase < 4 ? 0.5 :    // buildup
-                                   0.9;     // drop
-    const zcr = barPhase < 2 ? 0.05 :       // calma = bajos dominan
-                barPhase < 4 ? 0.25 :       // buildup = mixto
-                               0.55;        // drop = altos dominan
-    fake[i] = baseAmp * (1 - zcr) * (0.8 + Math.random()*0.2);
+    const t=i/HM_SIZE, bar=Math.floor(t*64)%8;
+    // 4 bars de intro/calma → 2 buildup → 2 drop
+    if(bar<4){      hmBass[i]=0.7; hmHigh[i]=0.1; }  // calma = bajos dominan
+    else if(bar<6){ hmBass[i]=0.5; hmHigh[i]=0.4; }  // buildup
+    else{           hmBass[i]=0.2; hmHigh[i]=0.85;}  // drop = altos dominan
   }
-  buildHeightMap(fake, 44100);
+  hmReady=true;
 }
 
 // ── ESTADO MUTABLE ────────────────────────────────────────────
@@ -452,19 +443,20 @@ for(let i=0;i<NSEGS;i++){
 }
 
 function drawRoad(dt, bass){
-  roadOff += SPEED * dt;
-  const pulse = bass * 0.45;
-  const span  = NSEGS * SEG;   // longitud total del ciclo
+  roadOff   += SPEED * dt;
+  wavePhase += SPEED * dt;  // avanza con el road — la ola "viaja" hacia la cámara
+
+  // Actualizar audio en tiempo real
+  updateRT();
+  if(phase==='playing') getOfflineRT();
+
+  const pulse = rtVol * 0.45;
+  const span  = NSEGS * SEG;
 
   for(let i=0;i<NSEGS;i++){
-    // Cada tile i ocupa una franja de SEG unidades.
-    // Su worldZ se calcula así:
-    //   base = Z_BACK (detrás de cámara), cicla hacia atrás sumando roadOff,
-    //   el modulo hace que cuando un tile pasa Z_BACK vuelva a Z_FRONT.
     const rawZ = Z_BACK - ((roadOff - i*SEG) % span + span) % span;
-    // Snap a grid para evitar gaps entre tiles
-    const z = Math.round(rawZ / SEG) * SEG;
-    const y = hAt(z);
+    const z    = Math.round(rawZ / SEG) * SEG;
+    const y    = hAt(z);
 
     tiles[i].position.set(0, y, z);
     tiles[i].material.emissive.setRGB(0.03+pulse*.12, 0.03+pulse*.04, 0.1+pulse*.22);
@@ -775,16 +767,12 @@ function tickShip(dt){
 let shk=0;
 let camY=8.5;
 
-function tickCam(dt, bass){
-  shk = shk*.85 + bass*.09;
-  // Cámara sigue la altura del road donde ella está (Z = SHIP_Z + 19)
-  const camRoadH  = hAt(SHIP_Z+19);
+function tickCam(dt){
+  shk = shk*.85 + rtVol*.09;
+  const camRoadH   = hAt(SHIP_Z+19);
   const targetCamY = camRoadH + 8.5;
-  camY += (targetCamY - camY) * 0.055;   // inercia = sensación de montaña rusa
-
-  // Lookahead: mira hacia el road varios tiles adelante de la nave
+  camY += (targetCamY - camY) * 0.055;
   const lookH = hAt(SHIP_Z - 30);
-
   cam.position.set(
     laneX*.2  + (Math.random()-.5)*shk*.22,
     camY      + (Math.random()-.5)*shk*.1,
@@ -1025,7 +1013,6 @@ bindSide('btn-l',-1);
 bindSide('btn-r', 1);
 
 // ── GAME LOOP ─────────────────────────────────────────────────
-const freqBuf=new Uint8Array(32);
 let lastTS=0;
 
 (function loop(ts){
@@ -1033,21 +1020,17 @@ let lastTS=0;
   const dt=Math.min((ts-lastTS)/1000,.05); lastTS=ts;
   const t=ts/1000;
 
-  // Bass energy
-  let bass=0;
-  if(analyser){ analyser.getByteFrequencyData(freqBuf); bass=(freqBuf[0]+freqBuf[1])/512; }
-
   if(phase==='playing'){
     spawnBlocks();
-    drawRoad(dt,bass);
+    drawRoad(dt);
     tickShip(dt);
     tickParts(dt);
-    tickCam(dt,bass);
+    tickCam(dt);
     pl1.position.x=Math.sin(t*.4)*15; pl2.position.x=Math.cos(t*.4)*15;
     pl1.color.setHSL((t*.04)%1,1,.5);  pl2.color.setHSL((t*.04+.5)%1,1,.5);
     updateHUD();
   } else {
-    drawRoad(dt,0);
+    drawRoad(dt);
     menuCam(t);
     pl1.position.x=Math.sin(t*.35)*14; pl2.position.x=Math.cos(t*.35)*14;
     pl1.color.setHSL((t*.035)%1,1,.5); pl2.color.setHSL((t*.035+.5)%1,1,.5);
