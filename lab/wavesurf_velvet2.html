@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>AudioSurf Clone</title>
+<style>
+  body { margin:0; overflow:hidden; background:black; }
+  canvas { display:block; }
+  #ui {
+    position:absolute;
+    top:10px;
+    left:10px;
+    color:white;
+    font-family:sans-serif;
+    z-index:10;
+  }
+</style>
+</head>
+<body>
+<div id="ui">
+  <input type="file" id="file">
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/three@0.160/build/three.min.js"></script>
+
+<script>
+let scene = new THREE.Scene();
+let camera = new THREE.PerspectiveCamera(70, innerWidth/innerHeight, 0.1, 1000);
+let renderer = new THREE.WebGLRenderer({ antialias:true });
+renderer.setSize(innerWidth, innerHeight);
+document.body.appendChild(renderer.domElement);
+
+scene.fog = new THREE.FogExp2(0x000000, 0.02);
+
+camera.position.set(0,2,5);
+
+// PLAYER
+let playerGeo = new THREE.BoxGeometry(0.5,0.5,1);
+let playerMat = new THREE.MeshStandardMaterial({ color:0x00ffff, emissive:0x003333 });
+let player = new THREE.Mesh(playerGeo, playerMat);
+scene.add(player);
+
+// LIGHT
+let light = new THREE.PointLight(0xffffff,2);
+light.position.set(0,10,5);
+scene.add(light);
+
+// TRACK
+let trackSegments = [];
+let segmentLength = 4;
+let lanes = [-2,0,2];
+let currentLane = 1;
+
+// AUDIO
+let audioCtx, analyser, dataArray;
+document.getElementById("file").addEventListener("change", e=>{
+  let file = e.target.files[0];
+  let url = URL.createObjectURL(file);
+  let audio = new Audio(url);
+  audio.crossOrigin="anonymous";
+
+  audioCtx = new (window.AudioContext||window.webkitAudioContext)();
+  let source = audioCtx.createMediaElementSource(audio);
+  analyser = audioCtx.createAnalyser();
+  analyser.fftSize = 256;
+  source.connect(analyser);
+  analyser.connect(audioCtx.destination);
+  dataArray = new Uint8Array(analyser.frequencyBinCount);
+
+  audio.play();
+});
+
+// GENERATE TRACK
+function generateSegment(zPos, height){
+  let geo = new THREE.BoxGeometry(6,0.2,segmentLength);
+  let mat = new THREE.MeshStandardMaterial({
+    color: new THREE.Color(`hsl(${height*3},100%,50%)`),
+    emissive: new THREE.Color(`hsl(${height*3},100%,20%)`)
+  });
+  let mesh = new THREE.Mesh(geo,mat);
+  mesh.position.set(0,height,zPos);
+  scene.add(mesh);
+  trackSegments.push(mesh);
+}
+
+for(let i=0;i<50;i++){
+  generateSegment(-i*segmentLength,0);
+}
+
+// INPUT TOUCH
+window.addEventListener("touchstart", e=>{
+  if(e.touches[0].clientX < innerWidth/2){
+    currentLane = Math.max(0,currentLane-1);
+  } else {
+    currentLane = Math.min(2,currentLane+1);
+  }
+});
+
+// KEYBOARD
+window.addEventListener("keydown", e=>{
+  if(e.key==="ArrowLeft") currentLane=Math.max(0,currentLane-1);
+  if(e.key==="ArrowRight") currentLane=Math.min(2,currentLane+1);
+});
+
+// LOOP
+let speed = 0.3;
+
+function animate(){
+  requestAnimationFrame(animate);
+
+  let height = 0;
+
+  if(analyser){
+    analyser.getByteFrequencyData(dataArray);
+    let sum = 0;
+    for(let i=0;i<dataArray.length;i++){
+      sum += dataArray[i];
+    }
+    height = sum / dataArray.length / 40;
+  }
+
+  // move track forward
+  trackSegments.forEach(seg=>{
+    seg.position.z += speed;
+  });
+
+  // recycle segments
+  if(trackSegments[0].position.z > 10){
+    let old = trackSegments.shift();
+    scene.remove(old);
+    generateSegment(trackSegments[trackSegments.length-1].position.z - segmentLength, height);
+  }
+
+  // smooth lane snapping
+  player.position.x += (lanes[currentLane] - player.position.x) * 0.2;
+
+  renderer.render(scene,camera);
+}
+
+animate();
+
+window.addEventListener("resize",()=>{
+  camera.aspect = innerWidth/innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight);
+});
+</script>
+</body>
+</html>
