@@ -12,22 +12,28 @@
     }
     input, button { margin:10px; padding:8px; }
     canvas { display:block; }
+    #hud {
+      position:absolute; top:10px; left:10px; color:white; font-family:sans-serif;
+    }
   </style>
 </head>
 <body>
 <div id="overlay">
   <h1>🌌 NebulaSurf</h1>
   <p>Sube tu MP3 para viajar por la constelación</p>
-  <input type="file" id="fileInput" accept="audio/mp3">
+  <input type="file" id="fileInput" accept="audio/mpeg,audio/*">
   <button id="demoBtn">Demo Track</button>
 </div>
+<div id="hud">Score: <span id="score">0</span></div>
 <canvas id="gameCanvas"></canvas>
 
 <script src="https://cdn.jsdelivr.net/npm/three@0.150.1/build/three.min.js"></script>
 
 <script>
 let scene, camera, renderer, tunnel, stars = [], analyser, audioCtx, source;
-let playing = false;
+let playing = false, score = 0;
+let player, lane = 0; // -1 izquierda, 0 centro, 1 derecha
+let obstacles = [];
 
 function initScene() {
   scene = new THREE.Scene();
@@ -37,7 +43,7 @@ function initScene() {
   renderer = new THREE.WebGLRenderer({canvas:document.getElementById("gameCanvas")});
   renderer.setSize(window.innerWidth, window.innerHeight);
 
-  // Tunnel geometry
+  // Tunnel
   const geometry = new THREE.TorusGeometry(10, 2, 16, 100);
   const material = new THREE.MeshBasicMaterial({color:0x4444ff, wireframe:true});
   tunnel = new THREE.Mesh(geometry, material);
@@ -54,6 +60,14 @@ function initScene() {
     stars.push(star);
   }
 
+  // Player
+  player = new THREE.Mesh(
+    new THREE.BoxGeometry(0.5,0.5,0.5),
+    new THREE.MeshBasicMaterial({color:0xff00ff})
+  );
+  player.position.z = 4;
+  scene.add(player);
+
   animate();
 }
 
@@ -66,8 +80,44 @@ function animate(){
     tunnel.rotation.x += avg/100000;
     tunnel.rotation.y += avg/100000;
     stars.forEach(s=>s.material.color.setHSL(Math.random(),1,0.5));
+
+    // Obstacles movement
+    obstacles.forEach((o,i)=>{
+      o.position.z += 0.1;
+      if(o.position.z>5){
+        scene.remove(o);
+        obstacles.splice(i,1);
+      }
+      // Collision
+      if(Math.abs(o.position.z-player.position.z)<0.5 && o.lane===lane){
+        score++;
+        document.getElementById("score").textContent=score;
+        scene.remove(o);
+        obstacles.splice(i,1);
+      }
+    });
+
+    // Beat detection: spawn obstacle
+    if(avg>100){
+      spawnObstacle();
+    }
   }
+  // Player lane update
+  player.position.x = lane*2;
   renderer.render(scene,camera);
+}
+
+function spawnObstacle(){
+  let lanes=[-1,0,1];
+  let chosen=lanes[Math.floor(Math.random()*3)];
+  let obs = new THREE.Mesh(
+    new THREE.BoxGeometry(0.5,0.5,0.5),
+    new THREE.MeshBasicMaterial({color:0x00ffff})
+  );
+  obs.position.set(chosen*2,0,-20);
+  obs.lane=chosen;
+  scene.add(obs);
+  obstacles.push(obs);
 }
 
 function playBuffer(buffer){
@@ -83,11 +133,15 @@ function playBuffer(buffer){
 
 function loadAudio(file){
   audioCtx = new (window.AudioContext||window.webkitAudioContext)();
+  audioCtx.resume();
   let reader = new FileReader();
   reader.onload = function(e){
-    audioCtx.decodeAudioData(e.target.result,function(buffer){
-      playBuffer(buffer);
-    });
+    audioCtx.decodeAudioData(e.target.result)
+      .then(buffer => playBuffer(buffer))
+      .catch(err => {
+        console.error("Decode error:", err);
+        alert("No se pudo decodificar el MP3");
+      });
   };
   reader.readAsArrayBuffer(file);
 }
@@ -98,13 +152,32 @@ document.getElementById("fileInput").addEventListener("change",e=>{
 
 document.getElementById("demoBtn").addEventListener("click",()=>{
   audioCtx = new (window.AudioContext||window.webkitAudioContext)();
-  fetch("https://cdn.pixabay.com/download/audio/2022/03/15/audio_7c7f1f.mp3?filename=demo.mp3")
+  audioCtx.resume();
+  fetch("demo.mp3") // ⚠️ usa un archivo local confiable
     .then(r=>r.arrayBuffer())
     .then(buf=>{
-      audioCtx.decodeAudioData(buf,function(buffer){
-        playBuffer(buffer);
-      });
+      audioCtx.decodeAudioData(buf)
+        .then(buffer => playBuffer(buffer))
+        .catch(err => console.error("Demo decode error:", err));
     });
+});
+
+// Controls
+window.addEventListener("keydown",e=>{
+  if(e.key==="ArrowLeft"||e.key==="a") lane=Math.max(-1,lane-1);
+  if(e.key==="ArrowRight"||e.key==="d") lane=Math.min(1,lane+1);
+});
+
+// Touch controls
+let startX=null;
+window.addEventListener("touchstart",e=>{startX=e.touches[0].clientX;});
+window.addEventListener("touchend",e=>{
+  let endX=e.changedTouches[0].clientX;
+  if(startX && endX){
+    if(endX-startX>50) lane=Math.min(1,lane+1);
+    if(startX-endX>50) lane=Math.max(-1,lane-1);
+  }
+  startX=null;
 });
 
 window.addEventListener("resize",()=>{
