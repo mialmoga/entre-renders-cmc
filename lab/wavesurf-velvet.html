@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>WaveSurf Velvet</title>
+<style>
+html,body{
+  margin:0;
+  overflow:hidden;
+  background:#000;
+  font-family:sans-serif;
+}
+#ui{
+  position:absolute;
+  top:10px;
+  left:10px;
+  color:white;
+  z-index:10;
+}
+button,input{
+  margin:5px 0;
+}
+canvas{
+  display:block;
+}
+</style>
+</head>
+<body>
+<div id="ui">
+  <input type="file" id="fileInput" accept="audio/*">
+  <button onclick="startDemo()">Demo</button>
+  <div>Score: <span id="score">0</span></div>
+</div>
+<canvas id="c"></canvas>
+
+<script>
+const canvas = document.getElementById("c");
+const ctx = canvas.getContext("2d");
+resize();
+window.addEventListener("resize", resize);
+
+function resize(){
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+}
+
+let audioCtx, analyser, source, dataArray;
+let shipLane = 1;
+let lanes = 3;
+let score = 0;
+let blocks = [];
+
+function initAudio(audio){
+  audioCtx = new (window.AudioContext||window.webkitAudioContext)();
+  analyser = audioCtx.createAnalyser();
+  analyser.fftSize = 256;
+  dataArray = new Uint8Array(analyser.frequencyBinCount);
+  source = audioCtx.createMediaElementSource(audio);
+  source.connect(analyser);
+  analyser.connect(audioCtx.destination);
+}
+
+document.getElementById("fileInput").addEventListener("change", e=>{
+  const file = e.target.files[0];
+  if(!file) return;
+  const audio = new Audio(URL.createObjectURL(file));
+  initAudio(audio);
+  audio.play();
+  loop();
+});
+
+function startDemo(){
+  const audio = new Audio("https://cdn.pixabay.com/download/audio/2022/03/15/audio_8f8b5f5a2e.mp3?filename=future-beat-117997.mp3");
+  initAudio(audio);
+  audio.play();
+  loop();
+}
+
+function loop(){
+  requestAnimationFrame(loop);
+  draw();
+}
+
+function draw(){
+  ctx.fillStyle="black";
+  ctx.fillRect(0,0,canvas.width,canvas.height);
+
+  if(analyser){
+    analyser.getByteFrequencyData(dataArray);
+    let avg = dataArray.reduce((a,b)=>a+b,0)/dataArray.length;
+
+    drawTrack(avg);
+    spawnBlocks(avg);
+    updateBlocks();
+    drawShip();
+  }
+}
+
+function drawTrack(avg){
+  let laneWidth = canvas.width/lanes;
+  for(let i=0;i<lanes;i++){
+    ctx.strokeStyle = `hsl(${avg*2},100%,50%)`;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(i*laneWidth,0);
+    ctx.lineTo(i*laneWidth,canvas.height);
+    ctx.stroke();
+  }
+}
+
+function spawnBlocks(avg){
+  if(Math.random()<0.03){
+    blocks.push({
+      lane: Math.floor(Math.random()*lanes),
+      y: -20,
+      size: 20+avg/10
+    });
+  }
+}
+
+function updateBlocks(){
+  let laneWidth = canvas.width/lanes;
+  blocks.forEach((b,i)=>{
+    b.y += 5;
+    ctx.fillStyle="white";
+    ctx.fillRect(b.lane*laneWidth+laneWidth/2-b.size/2,b.y,b.size,b.size);
+
+    if(b.y>canvas.height-100 && b.lane===shipLane){
+      score++;
+      document.getElementById("score").innerText=score;
+      blocks.splice(i,1);
+    }
+    if(b.y>canvas.height) blocks.splice(i,1);
+  });
+}
+
+function drawShip(){
+  let laneWidth = canvas.width/lanes;
+  let x = shipLane*laneWidth+laneWidth/2;
+  let y = canvas.height-60;
+  ctx.fillStyle="cyan";
+  ctx.beginPath();
+  ctx.moveTo(x,y);
+  ctx.lineTo(x-20,y+30);
+  ctx.lineTo(x+20,y+30);
+  ctx.closePath();
+  ctx.fill();
+}
+
+canvas.addEventListener("touchstart", e=>{
+  let touchX = e.touches[0].clientX;
+  shipLane = Math.floor(touchX/(canvas.width/lanes));
+});
+
+canvas.addEventListener("mousedown", e=>{
+  shipLane = Math.floor(e.clientX/(canvas.width/lanes));
+});
+</script>
+</body>
+</html>
