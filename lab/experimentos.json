@@ -30,6 +30,7 @@
     { "nombre": "proto life chemistry - v2", "archivo": "proto-life-chemistry-v2.html" },
     { "nombre": "proto life chemistry - v3", "archivo": "proto-life-chemistry-cine.html" },
     { "nombre": "proto life chemistry - v3 cine", "archivo": "proto-life-chemistry-v3-cine.html" },
-    { "nombre": "Quantum Chemistry 3D", "archivo": "quantum-chemistry-3d.html" }
+    { "nombre": "Quantum Chemistry 3D", "archivo": "quantum-chemistry-3d.html" },
+    { "nombre": "Lab Monitor", "archivo": "md.html" }
   ]
 }
