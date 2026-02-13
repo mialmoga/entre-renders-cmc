@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Terrarium MD Viewer</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <style>
+        .markdown-body h1 { @apply text-3xl font-bold mb-4 border-b pb-2; }
+        .markdown-body h2 { @apply text-2xl font-semibold mt-6 mb-3; }
+        .markdown-body p { @apply mb-4 leading-relaxed; }
+        .markdown-body code { @apply bg-gray-200 px-1 rounded font-mono text-sm; }
+        .markdown-body pre { @apply bg-gray-800 text-white p-4 rounded-lg mb-4 overflow-x-auto; }
+        .markdown-body ul { @apply list-disc ml-6 mb-4; }
+    </style>
+</head>
+<body class="bg-slate-900 text-slate-200 min-h-screen p-6">
+
+    <header class="max-w-5xl mx-auto mb-8 flex justify-between items-center border-b border-slate-700 pb-4">
+        <div>
+            <h1 class="text-2xl font-bold text-cyan-400">🧪 Terrarium Lab Reader</h1>
+            <p class="text-slate-400 text-sm">Visualizador de protocolos y bitácoras</p>
+        </div>
+        <div class="flex gap-3">
+            <input type="file" id="fileInput" class="hidden" accept=".md" multiple>
+            
+            <button onclick="triggerUpload('replace')" class="bg-slate-700 hover:bg-slate-600 px-4 py-2 rounded-md transition text-sm">
+                🔄 Reemplazar
+            </button>
+            <button onclick="triggerUpload('append')" class="bg-cyan-600 hover:bg-cyan-500 px-4 py-2 rounded-md transition text-sm font-bold">
+                ➕ Agregar Archivo
+            </button>
+        </div>
+    </header>
+
+    <main id="viewerContainer" class="max-w-5xl mx-auto space-y-6">
+        <div id="welcomeMessage" class="text-center py-20 border-2 border-dashed border-slate-700 rounded-xl">
+            <p class="text-slate-500 italic">No hay archivos cargados. Usa los botones de arriba para empezar.</p>
+        </div>
+    </main>
+
+    <script>
+        const fileInput = document.getElementById('fileInput');
+        const container = document.getElementById('viewerContainer');
+        const welcomeMessage = document.getElementById('welcomeMessage');
+        let mode = 'append';
+
+        function triggerUpload(newMode) {
+            mode = newMode;
+            fileInput.click();
+        }
+
+        fileInput.addEventListener('change', (e) => {
+            const files = e.target.files;
+            if (files.length === 0) return;
+
+            if (mode === 'replace') {
+                container.innerHTML = '';
+            } else {
+                if (welcomeMessage) welcomeMessage.remove();
+            }
+
+            Array.from(files).forEach(file => {
+                const reader = new FileReader();
+                reader.onload = (event) => {
+                    createFileCard(file.name, event.target.result);
+                };
+                reader.readAsText(file);
+            });
+            
+            fileInput.value = ''; // Reset para poder cargar el mismo archivo dos veces si se desea
+        });
+
+        function createFileCard(name, content) {
+            const card = document.createElement('div');
+            card.className = "bg-slate-800 border border-slate-700 rounded-xl overflow-hidden shadow-xl animate-in fade-in slide-in-from-bottom-4 duration-300";
+            
+            const htmlContent = marked.parse(content);
+
+            card.innerHTML = `
+                <div class="bg-slate-700/50 px-4 py-2 flex justify-between items-center border-b border-slate-700">
+                    <span class="text-xs font-mono text-cyan-300 uppercase tracking-wider">${name}</span>
+                    <button onclick="this.closest('div.animate-in').remove()" class="text-slate-400 hover:text-red-400 transition text-lg font-bold">
+                        &times;
+                    </button>
+                </div>
+                <div class="p-8 markdown-body text-slate-300">
+                    ${htmlContent}
+                </div>
+            `;
+            container.appendChild(card);
+        }
+    </script>
+</body>
+</html>
+
