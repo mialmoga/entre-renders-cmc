@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Quantum Chemistry</title>
+    <style>
+        :root {
+            --accent: #64c8ff;
+            --bg-panel: rgba(0, 0, 0, 0.85);
+            --border: 1px solid rgba(100, 200, 255, 0.3);
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; user-select: none; }
+        body { background: #000; overflow: hidden; font-family: 'Segoe UI', system-ui, sans-serif; touch-action: none; }
+        canvas { display: block; }
+
+        /* Contenedores Acoplables */
+        .dockable {
+            position: fixed;
+            background: var(--bg-panel);
+            backdrop-filter: blur(15px);
+            border-radius: 12px;
+            border: var(--border);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.8);
+            color: var(--accent);
+            z-index: 10;
+            padding: 15px;
+            transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        #ui-stats { top: 15px; left: 15px; width: 220px; }
+        #ui-controls { top: 15px; right: 75px; }
+        
+        /* Tabla Periódica Rediseñada */
+        #periodic-container {
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 90%;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+
+        .periodic-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(65px, 1fr));
+            gap: 8px;
+        }
+
+        /* Estilo de botones de elementos */
+        .element-btn {
+            background: rgba(100, 200, 255, 0.1);
+            border: 1px solid rgba(100, 200, 255, 0.3);
+            color: #fff;
+            padding: 8px;
+            border-radius: 8px;
+            cursor: pointer;
+            text-align: center;
+            transition: 0.2s;
+        }
+
+        .element-btn:hover { background: rgba(100, 200, 255, 0.3); border-color: var(--accent); }
+        .element-btn.selected { background: var(--accent); color: #000; box-shadow: 0 0 15px var(--accent); }
+
+        .hidden { transform: scale(0); opacity: 0; pointer-events: none; }
+
+        .toggle-main {
+            position: fixed; top: 15px; right: 15px;
+            width: 44px; height: 44px; border-radius: 50%;
+            background: var(--accent); border: none; cursor: pointer;
+            z-index: 100; font-size: 20px;
+        }
+
+        h4 { margin-bottom: 8px; color: #fff; border-bottom: 1px solid rgba(100, 200, 255, 0.2); padding-bottom: 4px; }
+    </style>
+</head>
+<body>
+
+<canvas id="canvas"></canvas>
+
+<button class="toggle-main" onclick="toggleUI()">👁️</button>
+
+<div id="ui-stats" class="dockable">
+    <h4>🔬 Laboratorio</h4>
+    <p>Átomos: <span id="atomCount" style="color:#fff">0</span></p>
+    <p>Enlaces: <span id="bondCount" style="color:#fff">0</span></p>
+    <p>Seleccionado: <span id="selectedElement" style="color:#fff">H</span></p>
+</div>
+
+<div id="ui-controls" class="dockable">
+    <button onclick="clearCanvas()" style="background:none; border:1px solid #f44; color:#f44; padding:5px 10px; border-radius:5px; cursor:pointer;">🗑️ Limpiar Todo</button>
+</div>
+
+<div id="periodic-container" class="dockable">
+    <h4>🧪 Elementos del JSON</h4>
+    <div id="periodic-grid" class="periodic-grid"></div>
+</div>
+
+<script>
+// EL JSON QUE ME PASASTE (Acoplado dinámicamente)
+const dataElements = {
+    "H": { "name": "Hidrógeno", "number": 1, "valence": 1, "electronegativity": 2.20, "color": "0xffffff", "mass": 1.008, "shells": [1], "category": "nonmetal" },
+    "He": { "name": "Helio", "number": 2, "valence": 0, "electronegativity": 0.0, "color": "0xd9ffff", "mass": 4.002, "shells": [2], "category": "noble_gas" },
+    "Li": { "name": "Litio", "number": 3, "valence": 1, "electronegativity": 0.98, "color": "0xcc80ff", "mass": 6.94, "shells": [2, 1], "category": "alkali_metal" },
+    "C": { "name": "Carbono", "number": 6, "valence": 4, "electronegativity": 2.55, "color": "0x909090", "mass": 12.011, "shells": [2, 4], "category": "nonmetal" },
+    "O": { "name": "Oxígeno", "number": 8, "valence": 2, "electronegativity": 3.44, "color": "0xff0d0d", "mass": 15.999, "shells": [2, 6], "category": "nonmetal" },
+    "Au": { "name": "Oro", "number": 79, "valence": 1, "electronegativity": 2.54, "color": "0xffd123", "mass": 196.97, "shells": [2, 8, 18, 32, 18, 1], "category": "transition_metal" },
+    "U": { "name": "Uranio", "number": 92, "valence": 6, "electronegativity": 1.38, "color": "0x008fff", "mass": 238.03, "shells": [2, 8, 18, 32, 21, 9, 2], "category": "actinide" }
+    // Aquí puedes pegar el resto de tu JSON completo
+};
+
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+let W, H, selectedSymbol = 'H';
+const atoms = [], bonds = [];
+
+function resize() { W = canvas.width = window.innerWidth; H = canvas.height = window.innerHeight; }
+window.addEventListener('resize', resize);
+resize();
+
+// Generar UI desde JSON
+const grid = document.getElementById('periodic-grid');
+Object.keys(dataElements).forEach(sym => {
+    const el = dataElements[sym];
+    const btn = document.createElement('div');
+    btn.className = `element-btn ${sym === 'H' ? 'selected' : ''}`;
+    btn.innerHTML = `<small>${el.number}</small><br><strong>${sym}</strong>`;
+    btn.onclick = () => {
+        selectedSymbol = sym;
+        document.querySelectorAll('.element-btn').forEach(b => b.classList.remove('selected'));
+        btn.classList.add('selected');
+        document.getElementById('selectedElement').innerText = sym;
+    };
+    grid.appendChild(btn);
+});
+
+class Atom {
+    constructor(x, y, sym) {
+        this.x = x; this.y = y; this.sym = sym;
+        this.data = dataElements[sym];
+        this.radius = 12 + (this.data.number * 0.15);
+        this.color = this.data.color.replace('0x', '#');
+        this.vx = (Math.random() - 0.5); this.vy = (Math.random() - 0.5);
+        this.bondsCount = 0;
+        this.angle = Math.random() * Math.PI * 2;
+    }
+
+    draw() {
+        this.angle += 0.02;
+        // Brillo nuclear
+        ctx.shadowBlur = 15; ctx.shadowColor = this.color;
+        ctx.fillStyle = this.color;
+        ctx.beginPath(); ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2); ctx.fill();
+        ctx.shadowBlur = 0;
+
+        // Texto
+        ctx.fillStyle = "#000"; ctx.font = "bold 12px Arial"; ctx.textAlign="center";
+        ctx.fillText(this.sym, this.x, this.y + 5);
+
+        // Órbitas (Visualización de valencia corregida)
+        // Dibujamos tantos electrones como valencia tenga, sin restar enlaces para que se "vea" el átomo real
+        const orbitR = this.radius * 2.2;
+        ctx.strokeStyle = "rgba(100,200,255,0.2)";
+        ctx.beginPath(); ctx.arc(this.x, this.y, orbitR, 0, Math.PI * 2); ctx.stroke();
+
+        for(let i=0; i < this.data.valence; i++) {
+            const a = this.angle + (i * Math.PI * 2 / this.data.valence);
+            const ex = this.x + Math.cos(a) * orbitR;
+            const ey = this.y + Math.sin(a) * orbitR;
+            ctx.fillStyle = "#64c8ff";
+            ctx.beginPath(); ctx.arc(ex, ey, 3, 0, Math.PI * 2); ctx.fill();
+        }
+    }
+
+    update() {
+        this.x += this.vx; this.y += this.vy;
+        if(this.x < 0 || this.x > W) this.vx *= -1;
+        if(this.y < 0 || this.y > H) this.vy *= -1;
+    }
+}
+
+class Bond {
+    constructor(a, b) { this.a = a; this.b = b; a.bondsCount++; b.bondsCount++; }
+    draw() {
+        ctx.strokeStyle = "rgba(100, 200, 255, 0.6)";
+        ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.moveTo(this.a.x, this.a.y); ctx.lineTo(this.b.x, this.b.y); ctx.stroke();
+    }
+}
+
+canvas.onclick = (e) => {
+    const newAtom = new Atom(e.clientX, e.clientY, selectedSymbol);
+    // Lógica de enlace
+    atoms.forEach(other => {
+        const d = Math.hypot(newAtom.x - other.x, newAtom.y - other.y);
+        if(d < 100 && newAtom.data.valence > newAtom.bondsCount && other.data.valence > other.bondsCount) {
+            bonds.push(new Bond(newAtom, other));
+        }
+    });
+    atoms.push(newAtom);
+    updateCounts();
+};
+
+function updateCounts() {
+    document.getElementById('atomCount').innerText = atoms.length;
+    document.getElementById('bondCount').innerText = bonds.length;
+}
+
+function clearCanvas() { atoms.length = 0; bonds.length = 0; updateCounts(); }
+
+function toggleUI() {
+    document.querySelectorAll('.dockable').forEach(d => d.classList.toggle('hidden'));
+}
+
+function loop() {
+    ctx.fillStyle = "rgba(0,0,0,0.2)";
+    ctx.fillRect(0,0,W,H);
+    bonds.forEach(b => b.draw());
+    atoms.forEach(a => { a.update(); a.draw(); });
+    requestAnimationFrame(loop);
+}
+loop();
+</script>
+</body>
+  </html>
