@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Quantum Chemistry Lab • Brujo</title>
+    <style>
+        /* RESTAURACIÓN DE ESTÉTICA ORIGINAL */
+        * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; user-select: none; }
+        body { background: #000; overflow: hidden; font-family: 'Segoe UI', system-ui, sans-serif; touch-action: none; }
+        canvas { display: block; }
+
+        .panel {
+            position: fixed; background: rgba(0, 0, 0, 0.85);
+            backdrop-filter: blur(15px); border-radius: 16px;
+            border: 1px solid rgba(100, 200, 255, 0.3);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.8);
+            color: #64c8ff; padding: 15px; z-index: 10;
+            transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+
+        /* Botón de flecha para colapsar */
+        .collapse-btn {
+            position: absolute; top: 10px; right: 10px;
+            cursor: pointer; font-size: 12px; transition: transform 0.3s;
+        }
+        .collapsed { height: 45px !important; overflow: hidden; width: 150px !important; }
+        .collapsed .collapse-btn { transform: rotate(-90deg); }
+        .collapsed *:not(h4):not(.collapse-btn) { display: none; }
+
+        #ui-left { top: 15px; left: 15px; width: 220px; }
+        #ui-right { top: 15px; right: 15px; width: 220px; }
+        
+        #periodicTable {
+            position: fixed; bottom: 20px; left: 15px; right: 15px;
+            height: 160px; display: flex; gap: 10px; overflow-x: auto;
+            padding: 10px; align-items: center;
+        }
+
+        /* Restauración de botones originales */
+        .element-card {
+            min-width: 80px; height: 100px;
+            background: rgba(100, 200, 255, 0.1);
+            border: 1px solid rgba(100, 200, 255, 0.2);
+            border-radius: 12px; display: flex; flex-direction: column;
+            align-items: center; justify-content: center;
+            cursor: pointer; transition: all 0.3s;
+        }
+        .element-card.active {
+            background: rgba(100, 200, 255, 0.3);
+            border-color: #64c8ff; box-shadow: 0 0 15px rgba(100, 200, 255, 0.5);
+            transform: translateY(-5px);
+        }
+        .element-card .symbol { font-size: 24px; font-weight: bold; color: #fff; }
+        .element-card .name { font-size: 10px; text-transform: uppercase; letter-spacing: 1px; }
+
+        .toggle-container { margin-top: 10px; display: flex; align-items: center; gap: 10px; font-size: 12px; }
+        input[type="checkbox"] { cursor: pointer; }
+    </style>
+</head>
+<body>
+
+<canvas id="canvas"></canvas>
+
+<div id="ui-left" class="panel">
+    <div class="collapse-btn" onclick="this.parentElement.classList.toggle('collapsed')">▼</div>
+    <h4>🔬 ESTADOS</h4>
+    <p>Átomos: <span id="atomCount">0</span></p>
+    <p>Enlaces: <span id="bondCount">0</span></p>
+    <div class="toggle-container">
+        <input type="checkbox" id="showAllElectrons"> 
+        <label for="showAllElectrons">Ver todos los electrones</label>
+    </div>
+</div>
+
+<div id="ui-right" class="panel">
+    <div class="collapse-btn" onclick="this.parentElement.classList.toggle('collapsed')">▼</div>
+    <h4>⚙️ CONTROLES</h4>
+    <button onclick="clearCanvas()" style="width:100%; padding:8px; background:rgba(255,50,50,0.2); border:1px solid #ff3232; color:#ff3232; border-radius:8px; cursor:pointer; margin-top:10px;">BORRAR TODO</button>
+</div>
+
+<div id="periodicTable" class="panel">
+    <div class="collapse-btn" onclick="this.parentElement.classList.toggle('collapsed')">▼</div>
+    <div id="elementsContainer" style="display:flex; gap:10px;"></div>
+</div>
+
+<script>
+let dataElements = {};
+let selectedSymbol = 'H';
+const atoms = [], bonds = [];
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+let W, H;
+
+// CARGA DINÁMICA DESDE EL ARCHIVO JSON
+async function loadElements() {
+    try {
+        const response = await fetch('elementos.json');
+        dataElements = await response.json();
+        initUI();
+    } catch (e) { console.error("Error cargando el JSON:", e); }
+}
+
+function initUI() {
+    const container = document.getElementById('elementsContainer');
+    Object.keys(dataElements).forEach(sym => {
+        const el = dataElements[sym];
+        const card = document.createElement('div');
+        card.className = `element-card ${sym === selectedSymbol ? 'active' : ''}`;
+        card.innerHTML = `<span class="symbol">${sym}</span><span class="name">${el.name}</span>`;
+        card.onclick = () => {
+            selectedSymbol = sym;
+            document.querySelectorAll('.element-card').forEach(c => c.classList.remove('active'));
+            card.classList.add('active');
+        };
+        container.appendChild(card);
+    });
+}
+
+class Atom {
+    constructor(x, y, sym) {
+        this.x = x; this.y = y; this.sym = sym;
+        this.data = dataElements[sym];
+        this.color = this.data.color.replace('0x', '#');
+        this.radius = 15;
+        this.vx = (Math.random() - 0.5) * 2;
+        this.vy = (Math.random() - 0.5) * 2;
+        this.angle = Math.random() * Math.PI * 2;
+        this.connectedBonds = 0;
+    }
+
+    draw() {
+        this.angle += 0.02;
+        const showAll = document.getElementById('showAllElectrons').checked;
+        
+        // Brillo y Núcleo (ESTÉTICA ORIGINAL)
+        ctx.save();
+        ctx.shadowBlur = 20; ctx.shadowColor = this.color;
+        ctx.fillStyle = this.color;
+        ctx.beginPath(); ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2); ctx.fill();
+        ctx.restore();
+
+        ctx.fillStyle = '#000'; ctx.font = 'bold 12px Arial'; ctx.textAlign = 'center';
+        ctx.fillText(this.sym, this.x, this.y + 5);
+
+        // Órbitas y Electrones
+        // Si showAll es true, usamos la última capa de 'shells'. Si es false, usamos 'valence'.
+        const totalToDisplay = showAll ? this.data.shells[this.data.shells.length - 1] : this.data.valence;
+        const availableElectrons = totalToDisplay - (showAll ? 0 : this.connectedBonds);
+        
+        const orbitR = this.radius * 2.5;
+        ctx.strokeStyle = 'rgba(100, 200, 255, 0.2)';
+        ctx.lineWidth = 1;
+        ctx.beginPath(); ctx.arc(this.x, this.y, orbitR, 0, Math.PI * 2); ctx.stroke();
+
+        for(let i = 0; i < availableElectrons; i++) {
+            const a = this.angle + (i * Math.PI * 2 / availableElectrons);
+            ctx.fillStyle = '#64c8ff';
+            ctx.beginPath();
+            ctx.arc(this.x + Math.cos(a) * orbitR, this.y + Math.sin(a) * orbitR, 3, 0, Math.PI * 2);
+            ctx.fill();
+        }
+    }
+
+    update() {
+        this.x += this.vx; this.y += this.vy;
+        if(this.x < 0 || this.x > W) this.vx *= -1;
+        if(this.y < 0 || this.y > H) this.vy *= -1;
+    }
+}
+
+class Bond {
+    constructor(a, b) { this.a = a; this.b = b; a.connectedBonds++; b.connectedBonds++; }
+    draw() {
+        ctx.strokeStyle = 'rgba(100, 200, 255, 0.4)';
+        ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.moveTo(this.a.x, this.a.y); ctx.lineTo(this.b.x, this.b.y); ctx.stroke();
+    }
+}
+
+function resize() { W = canvas.width = window.innerWidth; H = canvas.height = window.innerHeight; }
+window.addEventListener('resize', resize);
+resize();
+
+canvas.onclick = (e) => {
+    const atom = new Atom(e.clientX, e.clientY, selectedSymbol);
+    atoms.forEach(other => {
+        const d = Math.hypot(atom.x - other.x, atom.y - other.y);
+        if(d < 120 && atom.connectedBonds < atom.data.valence && other.connectedBonds < other.data.valence) {
+            bonds.push(new Bond(atom, other));
+        }
+    });
+    atoms.push(atom);
+    document.getElementById('atomCount').innerText = atoms.length;
+    document.getElementById('bondCount').innerText = bonds.length;
+};
+
+function clearCanvas() { atoms.length = 0; bonds.length = 0; }
+
+function animate() {
+    ctx.fillStyle = 'rgba(0,0,0,0.15)'; ctx.fillRect(0,0,W,H);
+    bonds.forEach(b => b.draw());
+    atoms.forEach(a => { a.update(); a.draw(); });
+    requestAnimationFrame(animate);
+}
+
+loadElements();
+animate();
+</script>
+</body>
+</html>
