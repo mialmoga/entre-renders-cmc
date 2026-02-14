@@ -5,208 +5,194 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
     <title>Quantum Chemistry Lab • Brujo</title>
     <style>
+        /* ESTÉTICA ORIGINAL Y COMPACTA */
         * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; user-select: none; }
         body { background: #000; overflow: hidden; font-family: 'Segoe UI', system-ui, sans-serif; touch-action: none; }
         canvas { display: block; }
 
-        /* PANEL ESTADOS - ESTILO ORIGINAL */
-        #ui-main {
-            position: fixed; top: 15px; left: 15px;
-            background: rgba(0, 0, 0, 0.85); backdrop-filter: blur(15px);
-            padding: 18px; border-radius: 16px; border: 1px solid rgba(100, 200, 255, 0.3);
-            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.8); color: #64c8ff;
-            width: 260px; z-index: 10; transition: all 0.3s ease;
+        .ui-panel {
+            position: fixed; background: rgba(0, 0, 0, 0.85);
+            backdrop-filter: blur(15px); border-radius: 16px;
+            border: 1px solid rgba(100, 200, 255, 0.3);
+            color: #64c8ff; z-index: 10; transition: all 0.3s ease;
         }
 
-        .collapse-toggle { position: absolute; top: 10px; right: 10px; cursor: pointer; color: #64c8ff; }
-        .collapsed { height: 50px !important; overflow: hidden; width: 160px !important; opacity: 0.8; }
-        .collapsed *:not(h3):not(.collapse-toggle) { display: none; }
-
-        /* BOTÓN LIMPIAR INDEPENDIENTE */
-        #clearBtn {
-            position: fixed; bottom: 20px; right: 20px;
-            background: rgba(100, 200, 255, 0.1); border: 2px solid #64c8ff;
-            color: #fff; padding: 12px 20px; border-radius: 12px;
-            cursor: pointer; font-weight: bold; z-index: 10;
+        .collapse-btn {
+            position: absolute; top: 10px; right: 10px;
+            cursor: pointer; font-size: 14px; z-index: 11;
         }
 
-        /* PANEL ELEMENTOS - SEGÚN CAPTURA */
-        .periodic-scroll-container {
-            position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
-            width: 90%; max-width: 800px;
-            background: rgba(0, 0, 0, 0.85); backdrop-filter: blur(15px);
-            padding: 15px; border-radius: 20px; border: 1px solid rgba(100, 200, 255, 0.3);
-            display: flex; gap: 10px; overflow-x: auto; scrollbar-width: none;
+        /* Panel Superior Izquierdo */
+        #ui-stats { top: 15px; left: 15px; width: 220px; padding: 15px; }
+        
+        /* PANEL DE ELEMENTOS (GRID 3 COLUMNAS - SEGÚN IMAGEN) */
+        #periodic-container {
+            bottom: 20px; left: 50%; transform: translateX(-50%);
+            width: 280px; height: 350px; padding: 40px 15px 15px 15px;
         }
-        .periodic-scroll-container::-webkit-scrollbar { display: none; }
+        
+        .grid-elements {
+            display: grid; grid-template-columns: repeat(3, 1fr);
+            gap: 10px; height: 100%; overflow-y: auto; padding-right: 5px;
+        }
+        /* Scroll fino */
+        .grid-elements::-webkit-scrollbar { width: 4px; }
+        .grid-elements::-webkit-scrollbar-thumb { background: #64c8ff; border-radius: 10px; }
 
         .element-card {
-            min-width: 75px; height: 95px;
-            background: rgba(100, 200, 255, 0.1); border: 1px solid rgba(100, 200, 255, 0.2);
-            border-radius: 12px; display: flex; flex-direction: column;
-            align-items: center; justify-content: center; cursor: pointer; transition: 0.3s;
+            background: rgba(100, 200, 255, 0.1); border: 1px solid rgba(100, 200, 255, 0.3);
+            border-radius: 10px; aspect-ratio: 1/1.2; display: flex; flex-direction: column;
+            align-items: center; justify-content: center; cursor: pointer; transition: 0.2s;
         }
-        .element-card.selected {
-            background: #64c8ff; border-color: #fff; box-shadow: 0 0 15px #64c8ff;
+        .element-card.active {
+            background: #64c8ff; box-shadow: 0 0 15px #64c8ff;
         }
-        .element-card.selected * { color: #000 !important; }
-        .el-num { font-size: 10px; opacity: 0.7; color: #64c8ff; }
-        .el-sym { font-size: 20px; font-weight: bold; color: #fff; margin: 2px 0; }
-        .el-name { font-size: 9px; text-transform: uppercase; color: #64c8ff; }
+        .element-card.active * { color: #000 !important; }
+        .el-sym { font-size: 18px; font-weight: bold; color: #fff; }
+        .el-num { font-size: 9px; opacity: 0.8; }
 
-        #toggleUI { position: fixed; top: 15px; right: 15px; width: 44px; height: 44px; border-radius: 50%; background: rgba(100,200,255,0.2); border: 2px solid #64c8ff; color: white; cursor: pointer; z-index: 100; display: flex; align-items: center; justify-content: center; }
+        /* Acople */
+        .collapsed { height: 45px !important; width: 140px !important; overflow: hidden; opacity: 0.6; }
+        .collapsed *:not(.collapse-btn):not(h4) { display: none; }
+
+        #clearBtn {
+            position: fixed; bottom: 20px; right: 20px;
+            background: rgba(255, 61, 110, 0.2); border: 1px solid #ff3d6e;
+            color: #ff3d6e; padding: 10px 15px; border-radius: 10px;
+            cursor: pointer; font-weight: bold; z-index: 10;
+        }
+        
+        #toggleUI { position: fixed; top: 15px; right: 15px; width: 40px; height: 40px; border-radius: 50%; background: rgba(100,200,255,0.2); border: 1px solid #64c8ff; color: #fff; cursor: pointer; z-index: 20; }
     </style>
 </head>
 <body>
 
 <canvas id="canvas"></canvas>
 
-<div id="ui-main">
-    <span class="collapse-toggle" onclick="this.parentElement.classList.toggle('collapsed')">▾</span>
-    <h3>⚛️ Quantum Lab</h3>
-    <p>Átomos: <span id="atomCount" style="color:#fff">0</span></p>
-    <p>Enlaces: <span id="bondCount" style="color:#fff">0</span></p>
-    <p>Seleccionado: <span id="selectedLabel" style="color:#fff">H</span></p>
-    <div style="margin-top:10px; font-size:12px;">
-        <input type="checkbox" id="modeFull"> <label for="modeFull">Ver todos los electrones</label>
+<div id="ui-stats" class="ui-panel">
+    <div class="collapse-btn" onclick="this.parentElement.classList.toggle('collapsed')">▾</div>
+    <h4>⚛️ ESTADOS</h4>
+    <p style="margin-top:10px">Átomos: <span id="atomCount">0</span></p>
+    <p>Enlaces: <span id="bondCount">0</span></p>
+    <div style="margin-top:10px; font-size:11px;">
+        <input type="checkbox" id="modeFull"> <label for="modeFull">Capa completa</label>
     </div>
 </div>
 
-<button id="toggleUI" onclick="toggleVisibility()">👁️</button>
-<button id="clearBtn" onclick="clearAll()">🗑️ Limpiar</button>
+<button id="toggleUI" onclick="toggleAll()">👁️</button>
+<button id="clearBtn" onclick="clearCanvas()">🗑️ Limpiar</button>
 
-<div class="periodic-scroll-container" id="periodicTable"></div>
+<div id="periodic-container" class="ui-panel">
+    <div class="collapse-btn" onclick="this.parentElement.classList.toggle('collapsed')">▾</div>
+    <h4 style="position:absolute; top:12px; left:15px">TABLA</h4>
+    <div class="grid-elements" id="gridElements"></div>
+</div>
 
 <script>
 const canvas = document.getElementById('canvas');
 const ctx = canvas.getContext('2d');
-let W, H, elements = {}, selectedElement = 'H';
+let W, H, elements = {}, selected = 'H';
 const atoms = [], bonds = [];
 
-async function loadData() {
-    try {
-        const res = await fetch('elementos.json');
-        elements = await res.json();
-        initUI();
-        // Molécula de inicio: H2O
-        setTimeout(() => {
-            addAtom(W*0.4, H*0.5, 'H');
-            addAtom(W*0.5, H*0.5, 'O');
-            addAtom(W*0.6, H*0.5, 'H');
-        }, 500);
-    } catch(e) { console.error("Error:", e); }
+async function init() {
+    const res = await fetch('elementos.json');
+    elements = await res.json();
+    
+    const grid = document.getElementById('gridElements');
+    Object.keys(elements).forEach(sym => {
+        const card = document.createElement('div');
+        card.className = `element-card ${sym === selected ? 'active' : ''}`;
+        card.innerHTML = `<span class="el-num">${elements[sym].number}</span><span class="el-sym">${sym}</span>`;
+        card.onclick = () => {
+            selected = sym;
+            document.querySelectorAll('.element-card').forEach(c => c.classList.remove('active'));
+            card.classList.add('active');
+        };
+        grid.appendChild(card);
+    });
+
+    // Molécula inicial: Agua (H2O)
+    spawnH2O();
 }
 
-function initUI() {
-    const table = document.getElementById('periodicTable');
-    Object.keys(elements).forEach(sym => {
-        const el = elements[sym];
-        const card = document.createElement('div');
-        card.className = `element-card ${sym === selectedElement ? 'selected' : ''}`;
-        card.innerHTML = `<span class="el-num">${el.number}</span><span class="el-sym">${sym}</span><span class="el-name">${el.name}</span>`;
-        card.onclick = () => {
-            selectedElement = sym;
-            document.querySelectorAll('.element-card').forEach(c => c.classList.remove('selected'));
-            card.classList.add('selected');
-            document.getElementById('selectedLabel').textContent = sym;
-        };
-        table.appendChild(card);
-    });
+function spawnH2O() {
+    addAtom(window.innerWidth/2, window.innerHeight/2, 'O');
+    addAtom(window.innerWidth/2 - 70, window.innerHeight/2 + 50, 'H');
+    addAtom(window.innerWidth/2 + 70, window.innerHeight/2 + 50, 'H');
 }
 
 class Atom {
     constructor(x, y, sym) {
         this.x = x; this.y = y; this.sym = sym;
         this.data = elements[sym];
+        this.radius = 16 + (this.data.number * 0.2);
         this.color = this.data.color.replace('0x', '#');
-        this.radius = 18 + (this.data.number * 0.2);
-        this.bondCount = 0;
-        this.time = Math.random() * 100;
+        this.bonds = 0;
+        this.angle = Math.random() * 6;
     }
-
     draw() {
-        this.time += 0.02;
+        this.angle += 0.02;
         const isFull = document.getElementById('modeFull').checked;
         
-        // NÚCLEO ORIGINAL CON RESPLANDOR
         ctx.save();
-        ctx.shadowBlur = 20; ctx.shadowColor = this.color;
+        ctx.shadowBlur = 15; ctx.shadowColor = this.color;
         ctx.fillStyle = this.color;
-        ctx.beginPath(); ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.arc(this.x, this.y, this.radius, 0, Math.PI*2); ctx.fill();
         ctx.restore();
 
-        ctx.fillStyle = '#000'; ctx.font = 'bold 14px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-        ctx.fillText(this.sym, this.x, this.y);
+        ctx.fillStyle = '#000'; ctx.font = 'bold 12px sans-serif'; ctx.textAlign = 'center';
+        ctx.fillText(this.sym, this.x, this.y + 5);
 
-        // ÓRBITAS Y ELECTRONES
-        const valence = this.data.valence;
-        const shells = this.data.shells[this.data.shells.length - 1];
-        const count = isFull ? shells : (valence - this.bondCount);
-        
-        if (count > 0) {
-            const orbitR = this.radius * 2.4;
+        const count = isFull ? this.data.shells[this.data.shells.length-1] : (this.data.valence - this.bonds);
+        if(count > 0) {
+            const orb = this.radius * 2.4;
             ctx.strokeStyle = 'rgba(100, 200, 255, 0.2)';
-            ctx.setLineDash([4, 4]);
-            ctx.beginPath(); ctx.arc(this.x, this.y, orbitR, 0, Math.PI * 2); ctx.stroke();
+            ctx.setLineDash([3, 3]);
+            ctx.beginPath(); ctx.arc(this.x, this.y, orb, 0, Math.PI*2); ctx.stroke();
             ctx.setLineDash([]);
-
             for(let i=0; i<count; i++) {
-                const angle = (i/count) * Math.PI * 2 + this.time;
+                const a = this.angle + (i * Math.PI * 2 / count);
                 ctx.fillStyle = '#64c8ff';
-                ctx.beginPath(); ctx.arc(this.x + Math.cos(angle)*orbitR, this.y + Math.sin(angle)*orbitR, 4, 0, Math.PI * 2); ctx.fill();
+                ctx.beginPath(); ctx.arc(this.x + Math.cos(a)*orb, this.y + Math.sin(a)*orb, 3, 0, Math.PI*2); ctx.fill();
             }
         }
     }
 }
 
 class Bond {
-    constructor(a, b) { this.a = a; this.b = b; a.bondCount++; b.bondCount++; }
+    constructor(a, b) { this.a = a; this.b = b; a.bonds++; b.bonds++; }
     draw() {
-        // ENLACE ORIGINAL CON FLUJO DE ELECTRONES
-        ctx.strokeStyle = '#64c8ff40'; ctx.lineWidth = 6;
-        ctx.beginPath(); ctx.moveTo(this.a.x, this.a.y); ctx.lineTo(this.b.x, this.b.y); ctx.stroke();
-        
-        ctx.strokeStyle = '#64c8ff'; ctx.lineWidth = 2; ctx.shadowBlur = 10; ctx.shadowColor = '#64c8ff';
+        ctx.strokeStyle = '#64c8ff'; ctx.lineWidth = 2;
+        ctx.shadowBlur = 10; ctx.shadowColor = '#64c8ff';
         ctx.beginPath(); ctx.moveTo(this.a.x, this.a.y); ctx.lineTo(this.b.x, this.b.y); ctx.stroke();
         ctx.shadowBlur = 0;
-
-        // Electrones en tránsito
+        
         const t = (Date.now() * 0.002) % 1;
-        const ex = this.a.x + (this.b.x - this.a.x) * t;
-        const ey = this.a.y + (this.b.y - this.a.y) * t;
-        ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(ex, ey, 3, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = '#fff';
+        ctx.beginPath(); 
+        ctx.arc(this.a.x + (this.b.x - this.a.x)*t, this.a.y + (this.b.y - this.a.y)*t, 2, 0, Math.PI*2); 
+        ctx.fill();
     }
 }
 
 function addAtom(x, y, sym) {
-    const atom = new Atom(x, y, sym);
+    const a = new Atom(x, y, sym);
     atoms.forEach(other => {
-        const d = Math.hypot(atom.x - other.x, atom.y - other.y);
-        if(d < 130 && atom.bondCount < atom.data.valence && other.bondCount < other.data.valence) {
-            bonds.push(new Bond(atom, other));
-        }
+        const d = Math.hypot(a.x - other.x, a.y - other.y);
+        if(d < 120 && a.bonds < a.data.valence && other.bonds < other.data.valence) bonds.push(new Bond(a, other));
     });
-    atoms.push(atom);
-    updateStats();
+    atoms.push(a);
+    document.getElementById('atomCount').innerText = atoms.length;
+    document.getElementById('bondCount').innerText = bonds.length;
 }
 
-function updateStats() {
-    document.getElementById('atomCount').textContent = atoms.length;
-    document.getElementById('bondCount').textContent = bonds.length;
-}
+function clearCanvas() { atoms.length = 0; bonds.length = 0; addAtom(W/2, H/2, 'H'); } // Re-spawnea algo para que no quede vacío
+function toggleAll() { document.querySelectorAll('.ui-panel').forEach(p => p.style.display = p.style.display==='none'?'block':'none'); }
 
-function clearAll() { atoms.length = 0; bonds.length = 0; updateStats(); }
-
-function toggleVisibility() {
-    const ui = [document.getElementById('ui-main'), document.getElementById('periodicTable'), document.getElementById('clearBtn')];
-    ui.forEach(el => el.style.display = el.style.display === 'none' ? 'flex' : 'none');
-}
-
+canvas.onclick = (e) => { if(e.target === canvas) addAtom(e.clientX, e.clientY, selected); };
 function resize() { W = canvas.width = window.innerWidth; H = canvas.height = window.innerHeight; }
 window.addEventListener('resize', resize);
 resize();
-
-canvas.onclick = (e) => { if(e.target === canvas) addAtom(e.clientX, e.clientY, selectedElement); };
 
 function animate() {
     ctx.fillStyle = 'rgba(0,0,0,0.2)'; ctx.fillRect(0,0,W,H);
@@ -215,7 +201,7 @@ function animate() {
     requestAnimationFrame(animate);
 }
 
-loadData();
+init();
 animate();
 </script>
 </body>
