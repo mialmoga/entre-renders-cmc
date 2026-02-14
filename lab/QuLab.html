@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Quantum Chemistry Lab • Brujo Edition</title>
+    <style>
+        /* ESTÉTICA ORIGINAL PRESERVADA */
+        * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; user-select: none; }
+        body { background: #000; overflow: hidden; font-family: 'Segoe UI', system-ui, sans-serif; touch-action: none; }
+        canvas { display: block; }
+
+        .ui-panel {
+            position: fixed; background: rgba(0, 0, 0, 0.85);
+            backdrop-filter: blur(15px); border-radius: 16px;
+            border: 1px solid rgba(100, 200, 255, 0.3);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.8);
+            color: #64c8ff; padding: 18px; z-index: 10;
+            transition: all 0.3s ease;
+        }
+
+        /* Botón de acople individual */
+        .collapse-toggle {
+            position: absolute; top: 10px; right: 10px;
+            cursor: pointer; font-size: 14px; color: #64c8ff;
+        }
+        .collapsed { height: 50px !important; overflow: hidden; width: 160px !important; opacity: 0.7; }
+        .collapsed *:not(h3):not(.collapse-toggle) { display: none; }
+
+        #ui-main { top: 15px; left: 15px; width: 260px; }
+        #ui-controls { top: 15px; right: 75px; }
+        
+        /* Panel de elementos con SCROLL */
+        .periodic-table {
+            position: fixed; bottom: 20px; left: 50%;
+            transform: translateX(-50%); width: 90%;
+            display: flex; gap: 8px; overflow-x: auto;
+            padding: 16px; scrollbar-width: thin;
+            scrollbar-color: #64c8ff rgba(0,0,0,0);
+        }
+        .periodic-table::-webkit-scrollbar { height: 4px; }
+        .periodic-table::-webkit-scrollbar-thumb { background: #64c8ff; border-radius: 10px; }
+
+        .element-btn {
+            background: linear-gradient(135deg, rgba(100, 200, 255, 0.2), rgba(50, 100, 150, 0.2));
+            border: 1px solid rgba(100, 200, 255, 0.5);
+            color: #ffffff; padding: 10px; border-radius: 10px;
+            cursor: pointer; font-size: 11px; font-weight: bold;
+            min-width: 65px; text-align: center; flex-shrink: 0;
+        }
+        .element-btn.selected {
+            background: linear-gradient(135deg, #64c8ff, #3264ff);
+            box-shadow: 0 0 20px rgba(100, 200, 255, 0.8);
+        }
+
+        .toggle-btn {
+            position: fixed; top: 15px; right: 15px;
+            width: 44px; height: 44px; border-radius: 50%;
+            background: rgba(100, 200, 255, 0.3); border: 2px solid #64c8ff;
+            color: #fff; cursor: pointer; z-index: 1000;
+        }
+    </style>
+</head>
+<body>
+
+<canvas id="canvas"></canvas>
+
+<div id="ui-main" class="ui-panel">
+    <span class="collapse-toggle" onclick="this.parentElement.classList.toggle('collapsed')">▾</span>
+    <h3>⚛️ ESTADOS</h3>
+    <p>Átomos: <span id="atomCount">0</span></p>
+    <p>Enlaces: <span id="bondCount">0</span></p>
+    <p>Elemento: <span id="selectedLabel">H</span></p>
+    <div style="margin-top:10px; font-size:11px;">
+        <input type="checkbox" id="modeFull"> <label for="modeFull">Capa completa (shells)</label>
+    </div>
+</div>
+
+<div id="ui-controls" class="ui-panel">
+    <span class="collapse-toggle" onclick="this.parentElement.classList.toggle('collapsed')">▾</span>
+    <button onclick="clearCanvas()" style="background:none; border:1px solid #ff3d6e; color:#ff3d6e; padding:5px 10px; border-radius:8px; cursor:pointer;">🗑️ Limpiar</button>
+</div>
+
+<button class="toggle-btn" onclick="toggleAllUI()">👁️</button>
+
+<div class="periodic-table ui-panel" id="periodicTable">
+    <span class="collapse-toggle" onclick="this.parentElement.classList.toggle('collapsed')">▾</span>
+    </div>
+
+<script>
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+let W, H, elements = {}, selectedElement = 'H';
+const atoms = [], bonds = [];
+
+// 1. CARGA EXTERNA
+async function loadData() {
+    try {
+        const res = await fetch('elementos.json');
+        elements = await res.json();
+        buildUI();
+    } catch(e) { console.error("Error cargando JSON", e); }
+}
+
+function buildUI() {
+    const table = document.getElementById('periodicTable');
+    Object.keys(elements).forEach(sym => {
+        const el = elements[sym];
+        const btn = document.createElement('div');
+        btn.className = 'element-btn' + (sym === selectedElement ? ' selected' : '');
+        btn.innerHTML = `<div style="font-size:9px;opacity:0.7">${el.number}</div><div>${sym}</div>`;
+        btn.onclick = () => {
+            selectedElement = sym;
+            document.querySelectorAll('.element-btn').forEach(b => b.classList.remove('selected'));
+            btn.classList.add('selected');
+            document.getElementById('selectedLabel').textContent = sym;
+        };
+        table.appendChild(btn);
+    });
+}
+
+// 2. LÓGICA DE ÁTOMOS ORIGINAL (SIN MOVIMIENTO INDEPENDIENTE)
+class Atom {
+    constructor(x, y, sym) {
+        this.x = x; this.y = y; this.sym = sym;
+        this.data = elements[sym];
+        this.radius = 15 + (this.data.number * 0.3);
+        this.color = this.data.color ? this.data.color.replace('0x', '#') : '#64c8ff';
+        this.bondCount = 0;
+        this.time = Math.random() * Math.PI * 2;
+    }
+
+    draw() {
+        this.time += 0.02;
+        const isFullMode = document.getElementById('modeFull').checked;
+        
+        // Estética Original: Resplandor y Núcleo
+        ctx.shadowBlur = 15; ctx.shadowColor = this.color;
+        ctx.fillStyle = this.color;
+        ctx.beginPath(); ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2); ctx.fill();
+        ctx.shadowBlur = 0;
+
+        ctx.fillStyle = '#000'; ctx.font = `bold ${this.radius * 0.8}px sans-serif`;
+        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.fillText(this.sym, this.x, this.y);
+
+        // Órbitas y Electrones (Lógica solicitada)
+        const valence = this.data.valence;
+        const shells = this.data.shells[this.data.shells.length - 1];
+        const displayTotal = isFullMode ? shells : valence;
+        const electronsToShow = isFullMode ? shells : (valence - this.bondCount);
+        
+        if (electronsToShow > 0) {
+            const orbitR = this.radius * 2.5;
+            ctx.strokeStyle = this.color + '30';
+            ctx.setLineDash([3, 3]);
+            ctx.beginPath(); ctx.arc(this.x, this.y, orbitR, 0, Math.PI * 2); ctx.stroke();
+            ctx.setLineDash([]);
+
+            for(let i=0; i < electronsToShow; i++) {
+                const angle = (i / electronsToShow) * Math.PI * 2 + this.time;
+                const ex = this.x + Math.cos(angle) * orbitR;
+                const ey = this.y + Math.sin(angle) * orbitR;
+                ctx.fillStyle = '#64c8ff';
+                ctx.beginPath(); ctx.arc(ex, ey, 4, 0, Math.PI * 2); ctx.fill();
+            }
+        }
+    }
+}
+
+class Bond {
+    constructor(a1, a2) { this.a1 = a1; this.a2 = a2; a1.bondCount++; a2.bondCount++; }
+    draw() {
+        ctx.strokeStyle = '#64c8ff'; ctx.lineWidth = 3; ctx.shadowBlur = 8; ctx.shadowColor = '#64c8ff';
+        ctx.beginPath(); ctx.moveTo(this.a1.x, this.a1.y); ctx.lineTo(this.a2.x, this.a2.y); ctx.stroke();
+        ctx.shadowBlur = 0;
+    }
+}
+
+function resize() { W = canvas.width = window.innerWidth; H = canvas.height = window.innerHeight; }
+window.addEventListener('resize', resize);
+resize();
+
+canvas.onclick = (e) => {
+    const atom = new Atom(e.clientX, e.clientY, selectedElement);
+    atoms.forEach(other => {
+        const d = Math.hypot(atom.x - other.x, atom.y - other.y);
+        if(d < 120 && atom.bondCount < atom.data.valence && other.bondCount < other.data.valence) {
+            bonds.push(new Bond(atom, other));
+        }
+    });
+    atoms.push(atom);
+    updateStats();
+};
+
+function updateStats() {
+    document.getElementById('atomCount').textContent = atoms.length;
+    document.getElementById('bondCount').textContent = bonds.length;
+}
+
+function clearCanvas() { atoms.length = 0; bonds.length = 0; updateStats(); }
+
+function toggleAllUI() {
+    document.querySelectorAll('.ui-panel').forEach(p => p.classList.toggle('collapsed'));
+}
+
+function animate() {
+    ctx.fillStyle = 'rgba(0,0,0,0.15)'; ctx.fillRect(0,0,W,H);
+    bonds.forEach(b => b.draw());
+    atoms.forEach(a => a.draw());
+    requestAnimationFrame(animate);
+}
+
+loadData();
+animate();
+</script>
+</body>
+</html>
