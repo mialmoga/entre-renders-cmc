@@ -1,0 +1,747 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Quantum Chemistry 3D • Claude</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
+            user-select: none;
+        }
+
+        body {
+            background: radial-gradient(ellipse at center, #0a0a15 0%, #000000 100%);
+            overflow: hidden;
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            touch-action: none;
+            color: #64c8ff;
+        }
+
+        canvas {
+            display: block;
+            touch-action: none;
+        }
+
+        #ui {
+            position: fixed;
+            top: 15px;
+            left: 15px;
+            background: rgba(0, 0, 0, 0.85);
+            backdrop-filter: blur(15px);
+            padding: 18px 20px;
+            border-radius: 16px;
+            border: 1px solid rgba(100, 200, 255, 0.3);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.8);
+            font-size: 13px;
+            max-width: 320px;
+            transition: all 0.3s ease;
+            z-index: 100;
+        }
+
+        #ui.hidden {
+            transform: translateY(-20px);
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        #ui h3 {
+            margin: 0 0 15px 0;
+            font-size: 18px;
+            color: #ffffff;
+            text-shadow: 0 0 10px rgba(100, 200, 255, 0.5);
+        }
+
+        .info-text {
+            font-size: 11px;
+            opacity: 0.8;
+            line-height: 1.6;
+            margin-bottom: 12px;
+            padding-bottom: 12px;
+            border-bottom: 1px solid rgba(100, 200, 255, 0.2);
+        }
+
+        .stat-row {
+            display: flex;
+            justify-content: space-between;
+            margin: 6px 0;
+            font-size: 12px;
+        }
+
+        .stat-value {
+            color: #ffffff;
+            font-weight: bold;
+        }
+
+        .controls {
+            position: fixed;
+            top: 15px;
+            right: 15px;
+            display: flex;
+            gap: 10px;
+            z-index: 100;
+            flex-wrap: wrap;
+            max-width: 200px;
+            justify-content: flex-end;
+        }
+
+        .control-btn {
+            background: rgba(0, 0, 0, 0.85);
+            backdrop-filter: blur(15px);
+            border: 1px solid rgba(100, 200, 255, 0.3);
+            color: #64c8ff;
+            padding: 12px 16px;
+            border-radius: 12px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.2s;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+        }
+
+        .control-btn:hover {
+            background: rgba(20, 20, 35, 0.95);
+            border-color: #64c8ff;
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(100, 200, 255, 0.3);
+        }
+
+        .control-btn:active {
+            transform: translateY(0);
+        }
+
+        .element-selector {
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0, 0, 0, 0.85);
+            backdrop-filter: blur(15px);
+            padding: 16px 20px;
+            border-radius: 16px;
+            border: 1px solid rgba(100, 200, 255, 0.3);
+            transition: all 0.3s ease;
+            max-width: 95%;
+            z-index: 100;
+        }
+
+        .element-selector.hidden {
+            transform: translateX(-50%) translateY(20px);
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        .selector-title {
+            margin-bottom: 12px;
+            font-size: 14px;
+            color: #ffffff;
+            font-weight: 600;
+            text-align: center;
+        }
+
+        .element-grid {
+            display: grid;
+            grid-template-columns: repeat(6, 1fr);
+            gap: 10px;
+        }
+
+        .element-btn {
+            background: rgba(20, 20, 40, 0.8);
+            border: 2px solid rgba(100, 200, 255, 0.2);
+            color: #ffffff;
+            padding: 12px 8px;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-size: 11px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .element-btn:hover {
+            border-color: #64c8ff;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 16px rgba(100, 200, 255, 0.4);
+        }
+
+        .element-btn.selected {
+            border-color: #64c8ff;
+            background: rgba(100, 200, 255, 0.2);
+            box-shadow: 0 0 20px rgba(100, 200, 255, 0.5);
+        }
+
+        .element-symbol {
+            font-size: 18px;
+            font-weight: bold;
+        }
+
+        .element-name {
+            font-size: 9px;
+            opacity: 0.7;
+        }
+
+        #hint {
+            position: fixed;
+            bottom: 120px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0, 0, 0, 0.9);
+            padding: 12px 20px;
+            border-radius: 12px;
+            border: 1px solid rgba(100, 200, 255, 0.3);
+            font-size: 12px;
+            opacity: 0;
+            transition: opacity 0.3s;
+            pointer-events: none;
+            text-align: center;
+        }
+
+        #hint.show {
+            opacity: 1;
+        }
+
+        @media (max-width: 768px) {
+            .element-grid {
+                grid-template-columns: repeat(4, 1fr);
+                gap: 8px;
+            }
+
+            .element-btn {
+                padding: 10px 6px;
+            }
+        }
+    </style>
+</head>
+<body>
+
+<div id="ui">
+    <h3>⚛️ Quantum Chemistry 3D</h3>
+    <div class="info-text">
+        Click para agregar átomos • 1 dedo = rotar • 2 dedos = zoom/pan
+    </div>
+    <div class="stat-row">
+        <span>Átomos:</span>
+        <span class="stat-value" id="atomCount">0</span>
+    </div>
+    <div class="stat-row">
+        <span>Moléculas:</span>
+        <span class="stat-value" id="moleculeCount">0</span>
+    </div>
+    <div class="stat-row">
+        <span>Enlaces:</span>
+        <span class="stat-value" id="bondCount">0</span>
+    </div>
+    <div class="stat-row">
+        <span>Seleccionado:</span>
+        <span class="stat-value" id="selectedElement">-</span>
+    </div>
+</div>
+
+<div class="controls">
+    <button class="control-btn toggle-btn" id="toggleBtn">👁️</button>
+    <div id="moleculeButtons"></div>
+    <button class="control-btn" id="clearBtn">🗑️</button>
+</div>
+
+<div class="element-selector" id="elementSelector">
+    <div class="selector-title">Química Orgánica Esencial</div>
+    <div class="element-grid" id="elementGrid"></div>
+</div>
+
+<div id="hint"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+
+// ========= LOAD JSON DATA =========
+let ELEMENT_DATABASE = {};
+let MOLECULES = [];
+let selectedElement = null;
+
+async function loadData() {
+    try {
+        const [elementsRes, moleculesRes] = await Promise.all([
+            fetch('elementos.json'),
+            fetch('moleculas.json')
+        ]);
+        
+        ELEMENT_DATABASE = await elementsRes.json();
+        MOLECULES = await moleculesRes.json();
+        
+        // Convert color strings to numbers
+        Object.values(ELEMENT_DATABASE).forEach(el => {
+            if (typeof el.color === 'string') {
+                el.color = parseInt(el.color, 16);
+            }
+        });
+        
+        initUI();
+        showHint('🧪 Selecciona un elemento y haz click para agregar átomos');
+    } catch (error) {
+        console.error('Error loading data:', error);
+        showHint('❌ Error cargando datos. Verifica que elementos.json y moleculas.json estén presentes.');
+    }
+}
+
+function initUI() {
+    // Create element buttons
+    const grid = document.getElementById('elementGrid');
+    Object.entries(ELEMENT_DATABASE).forEach(([symbol, element]) => {
+        const btn = document.createElement('button');
+        btn.className = 'element-btn';
+        btn.innerHTML = `
+            <div class="element-symbol">${symbol}</div>
+            <div class="element-name">${element.name}</div>
+        `;
+        btn.addEventListener('click', () => {
+            document.querySelectorAll('.element-btn').forEach(b => b.classList.remove('selected'));
+            btn.classList.add('selected');
+            selectedElement = symbol;
+            document.getElementById('selectedElement').textContent = element.name;
+        });
+        grid.appendChild(btn);
+    });
+    
+    // Create molecule preset buttons
+    const moleculeContainer = document.getElementById('moleculeButtons');
+    MOLECULES.forEach((mol, idx) => {
+        const btn = document.createElement('button');
+        btn.className = 'control-btn';
+        btn.textContent = `${mol.icon} ${mol.formula}`;
+        btn.title = mol.name;
+        btn.addEventListener('click', () => createMolecule(idx));
+        moleculeContainer.appendChild(btn);
+    });
+}
+
+// ========= THREE.JS SETUP =========
+const scene = new THREE.Scene();
+scene.fog = new THREE.FogExp2(0x000000, 0.015);
+
+const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
+camera.position.set(0, 0, 25);
+
+const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.setClearColor(0x000000, 0);
+document.body.appendChild(renderer.domElement);
+
+// Lighting
+const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
+scene.add(ambientLight);
+
+const pointLight = new THREE.PointLight(0x64c8ff, 1, 100);
+pointLight.position.set(10, 10, 10);
+scene.add(pointLight);
+
+// ========= ATOM CLASS =========
+class Atom {
+    constructor(position, elementSymbol) {
+        this.element = ELEMENT_DATABASE[elementSymbol];
+        this.symbol = elementSymbol;
+        this.group = new THREE.Group();
+        this.bonds = [];
+        
+        // Nucleus
+        const nucleusGeo = new THREE.SphereGeometry(0.5, 32, 32);
+        const nucleusMat = new THREE.MeshPhongMaterial({
+            color: this.element.color,
+            emissive: this.element.color,
+            emissiveIntensity: 0.3,
+            shininess: 100
+        });
+        this.nucleus = new THREE.Mesh(nucleusGeo, nucleusMat);
+        this.group.add(this.nucleus);
+        
+        // Electron shells
+        this.shells = [];
+        let radius = 1;
+        this.element.shells.forEach((electronCount, shellIndex) => {
+            const shellGeo = new THREE.TorusGeometry(radius, 0.02, 8, 32);
+            const shellMat = new THREE.MeshBasicMaterial({
+                color: 0x64c8ff,
+                transparent: true,
+                opacity: 0.3
+            });
+            const shell = new THREE.Mesh(shellGeo, shellMat);
+            
+            // Random rotation for variety
+            shell.rotation.x = Math.random() * Math.PI;
+            shell.rotation.y = Math.random() * Math.PI;
+            
+            this.group.add(shell);
+            this.shells.push(shell);
+            
+            // Electrons
+            for(let i = 0; i < electronCount; i++) {
+                const electronGeo = new THREE.SphereGeometry(0.08, 16, 16);
+                const electronMat = new THREE.MeshPhongMaterial({
+                    color: 0x00ffff,
+                    emissive: 0x00ffff,
+                    emissiveIntensity: 0.5
+                });
+                const electron = new THREE.Mesh(electronGeo, electronMat);
+                
+                const angle = (i / electronCount) * Math.PI * 2;
+                electron.userData = { angle, radius, speed: 0.02 + Math.random() * 0.01, shellIndex };
+                
+                this.group.add(electron);
+            }
+            
+            radius += 0.8;
+        });
+        
+        this.group.position.copy(position);
+        scene.add(this.group);
+    }
+    
+    update() {
+        this.nucleus.rotation.x += 0.01;
+        this.nucleus.rotation.y += 0.01;
+        
+        this.shells.forEach(shell => {
+            shell.rotation.z += 0.005;
+        });
+        
+        this.group.children.forEach(child => {
+            if(child.userData.angle !== undefined) {
+                child.userData.angle += child.userData.speed;
+                const x = Math.cos(child.userData.angle) * child.userData.radius;
+                const z = Math.sin(child.userData.angle) * child.userData.radius;
+                child.position.set(x, 0, z);
+            }
+        });
+    }
+    
+    remove() {
+        scene.remove(this.group);
+    }
+}
+
+// ========= BOND CLASS =========
+class Bond {
+    constructor(atom1, atom2) {
+        this.atom1 = atom1;
+        this.atom2 = atom2;
+        
+        const geometry = new THREE.CylinderGeometry(0.1, 0.1, 1, 8);
+        const material = new THREE.MeshPhongMaterial({
+            color: 0x888888,
+            emissive: 0x444444,
+            emissiveIntensity: 0.2
+        });
+        this.mesh = new THREE.Mesh(geometry, material);
+        scene.add(this.mesh);
+        
+        atom1.bonds.push(this);
+        atom2.bonds.push(this);
+        
+        this.update();
+    }
+    
+    update() {
+        const start = this.atom1.group.position;
+        const end = this.atom2.group.position;
+        
+        this.mesh.position.copy(start).add(end).multiplyScalar(0.5);
+        
+        const direction = new THREE.Vector3().subVectors(end, start);
+        const length = direction.length();
+        this.mesh.scale.y = length;
+        
+        const axis = new THREE.Vector3(0, 1, 0);
+        const quaternion = new THREE.Quaternion().setFromUnitVectors(axis, direction.normalize());
+        this.mesh.quaternion.copy(quaternion);
+    }
+    
+    isValid() {
+        return this.atom1.group.parent && this.atom2.group.parent;
+    }
+    
+    remove() {
+        scene.remove(this.mesh);
+    }
+}
+
+// ========= SCENE MANAGEMENT =========
+const atoms = [];
+const bonds = [];
+
+function addAtom(position, elementSymbol) {
+    const atom = new Atom(position, elementSymbol);
+    atoms.push(atom);
+    
+    // Auto-bonding
+    atoms.forEach(other => {
+        if(other !== atom) {
+            const distance = atom.group.position.distanceTo(other.group.position);
+            if(distance < 4) {
+                const atomBondCount = atom.bonds.length;
+                const otherBondCount = other.bonds.length;
+                
+                if(atomBondCount < atom.element.valence && otherBondCount < other.element.valence) {
+                    bonds.push(new Bond(atom, other));
+                }
+            }
+        }
+    });
+    
+    updateStats();
+}
+
+function updateStats() {
+    document.getElementById('atomCount').textContent = atoms.length;
+    
+    // Count molecules using DFS
+    const visited = new Set();
+    let moleculeCount = 0;
+    
+    function dfs(atom) {
+        visited.add(atom);
+        atom.bonds.forEach(bond => {
+            const neighbor = bond.atom1 === atom ? bond.atom2 : bond.atom1;
+            if(!visited.has(neighbor)) dfs(neighbor);
+        });
+    }
+    
+    for(const atom of atoms) {
+        if(!visited.has(atom)) {
+            moleculeCount++;
+            dfs(atom);
+        }
+    }
+    
+    document.getElementById('moleculeCount').textContent = moleculeCount;
+    document.getElementById('bondCount').textContent = bonds.length;
+}
+
+function clearAll() {
+    atoms.forEach(a => a.remove());
+    bonds.forEach(b => b.remove());
+    atoms.length = 0;
+    bonds.length = 0;
+    updateStats();
+}
+
+function createMolecule(index) {
+    const mol = MOLECULES[index];
+    clearAll();
+    setTimeout(() => {
+        mol.atoms.forEach(atomData => {
+            const pos = new THREE.Vector3(...atomData.position);
+            addAtom(pos, atomData.element);
+        });
+        showHint(`${mol.icon} Molécula de ${mol.name} (${mol.formula}) creada`);
+    }, 100);
+}
+
+function showHint(text) {
+    const hint = document.getElementById('hint');
+    hint.textContent = text;
+    hint.classList.add('show');
+    setTimeout(() => hint.classList.remove('show'), 2000);
+}
+
+// ========= CAMERA CONTROLS (IMPROVED FOR TOUCH) =========
+let isPointerDown = false;
+let pointerStart = { x: 0, y: 0 };
+let pointerMoved = 0;
+let previousMouse = { x: 0, y: 0 };
+const DRAG_THRESHOLD = 8;
+
+// Touch gesture state
+let touchState = {
+    touches: [],
+    initialDistance: 0,
+    initialCameraZ: 0,
+    mode: null // 'rotate', 'pinch', 'pan'
+};
+
+function handlePointerDown(e) {
+    if(e.target === renderer.domElement) {
+        isPointerDown = true;
+        pointerMoved = 0;
+        pointerStart = { x: e.clientX, y: e.clientY };
+        previousMouse = { x: e.clientX, y: e.clientY };
+    }
+}
+
+function handlePointerMove(e) {
+    if(isPointerDown) {
+        const deltaX = e.clientX - previousMouse.x;
+        const deltaY = e.clientY - previousMouse.y;
+        
+        pointerMoved += Math.sqrt(deltaX * deltaX + deltaY * deltaY);
+        
+        // ROTATE scene instead of panning camera
+        scene.rotation.y += deltaX * 0.01;
+        scene.rotation.x += deltaY * 0.01;
+        
+        previousMouse = { x: e.clientX, y: e.clientY };
+    }
+}
+
+function handlePointerUp(e) {
+    if(isPointerDown && pointerMoved < DRAG_THRESHOLD && e && e.target === renderer.domElement && selectedElement) {
+        const mouse = new THREE.Vector2(
+            (pointerStart.x / window.innerWidth) * 2 - 1,
+            -(pointerStart.y / window.innerHeight) * 2 + 1
+        );
+        const raycaster = new THREE.Raycaster();
+        raycaster.setFromCamera(mouse, camera);
+        const position = raycaster.ray.origin.clone().add(
+            raycaster.ray.direction.multiplyScalar(20)
+        );
+        addAtom(position, selectedElement);
+    }
+    isPointerDown = false;
+    pointerMoved = 0;
+}
+
+// Desktop controls
+renderer.domElement.addEventListener('mousedown', handlePointerDown);
+renderer.domElement.addEventListener('mousemove', handlePointerMove);
+renderer.domElement.addEventListener('mouseup', handlePointerUp);
+
+// Touch controls (improved)
+renderer.domElement.addEventListener('touchstart', (e) => {
+    e.preventDefault();
+    const touches = Array.from(e.touches);
+    touchState.touches = touches.map(t => ({ x: t.clientX, y: t.clientY }));
+    
+    if(touches.length === 1) {
+        // Single finger = rotate
+        touchState.mode = 'rotate';
+        handlePointerDown({ target: e.target, clientX: touches[0].clientX, clientY: touches[0].clientY });
+    } else if(touches.length === 2) {
+        // Two fingers = prepare for pinch or pan
+        touchState.mode = 'pinch';
+        const dx = touches[1].clientX - touches[0].clientX;
+        const dy = touches[1].clientY - touches[0].clientY;
+        touchState.initialDistance = Math.sqrt(dx * dx + dy * dy);
+        touchState.initialCameraZ = camera.position.z;
+    }
+}, { passive: false });
+
+renderer.domElement.addEventListener('touchmove', (e) => {
+    e.preventDefault();
+    const touches = Array.from(e.touches);
+    
+    if(touches.length === 1 && touchState.mode === 'rotate') {
+        // Single finger = rotate
+        handlePointerMove({ clientX: touches[0].clientX, clientY: touches[0].clientY });
+    } else if(touches.length === 2) {
+        const dx = touches[1].clientX - touches[0].clientX;
+        const dy = touches[1].clientY - touches[0].clientY;
+        const currentDistance = Math.sqrt(dx * dx + dy * dy);
+        
+        // Detect if pinching or panning
+        const distanceChange = Math.abs(currentDistance - touchState.initialDistance);
+        const center = {
+            x: (touches[0].clientX + touches[1].clientX) / 2,
+            y: (touches[0].clientY + touches[1].clientY) / 2
+        };
+        const oldCenter = {
+            x: (touchState.touches[0].x + touchState.touches[1].x) / 2,
+            y: (touchState.touches[0].y + touchState.touches[1].y) / 2
+        };
+        const centerDelta = Math.sqrt(
+            Math.pow(center.x - oldCenter.x, 2) + 
+            Math.pow(center.y - oldCenter.y, 2)
+        );
+        
+        if(distanceChange > centerDelta) {
+            // PINCH (zoom)
+            const scale = currentDistance / touchState.initialDistance;
+            camera.position.z = touchState.initialCameraZ / scale;
+            camera.position.z = Math.max(5, Math.min(50, camera.position.z));
+        } else {
+            // PAN (move camera)
+            const deltaX = center.x - oldCenter.x;
+            const deltaY = center.y - oldCenter.y;
+            camera.position.x -= deltaX * 0.05;
+            camera.position.y += deltaY * 0.05;
+            camera.lookAt(0, 0, 0);
+        }
+        
+        touchState.touches = touches.map(t => ({ x: t.clientX, y: t.clientY }));
+    }
+}, { passive: false });
+
+renderer.domElement.addEventListener('touchend', (e) => {
+    e.preventDefault();
+    if(e.touches.length === 0) {
+        if(touchState.mode === 'rotate' && e.changedTouches.length === 1) {
+            const touch = e.changedTouches[0];
+            handlePointerUp({ target: e.target, clientX: touch.clientX, clientY: touch.clientY });
+        }
+        touchState.mode = null;
+        touchState.touches = [];
+    } else if(e.touches.length === 1) {
+        // Transition back to single finger rotation
+        touchState.mode = 'rotate';
+        const touch = e.touches[0];
+        handlePointerDown({ target: e.target, clientX: touch.clientX, clientY: touch.clientY });
+    }
+}, { passive: false });
+
+// Mouse wheel zoom
+renderer.domElement.addEventListener('wheel', (e) => {
+    e.preventDefault();
+    camera.position.z += e.deltaY * 0.01;
+    camera.position.z = Math.max(5, Math.min(50, camera.position.z));
+}, { passive: false });
+
+// ========= UI CONTROLS =========
+let uiVisible = true;
+
+document.getElementById('toggleBtn').addEventListener('click', () => {
+    uiVisible = !uiVisible;
+    document.getElementById('ui').classList.toggle('hidden');
+    document.getElementById('elementSelector').classList.toggle('hidden');
+});
+
+document.getElementById('clearBtn').addEventListener('click', clearAll);
+
+// ========= RESIZE =========
+window.addEventListener('resize', () => {
+    camera.aspect = window.innerWidth / window.innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(window.innerWidth, window.innerHeight);
+});
+
+// ========= ANIMATION LOOP =========
+function animate() {
+    requestAnimationFrame(animate);
+    
+    atoms.forEach(atom => atom.update());
+    
+    for(let i = bonds.length - 1; i >= 0; i--) {
+        const bond = bonds[i];
+        if(!bond.isValid()) {
+            bond.remove();
+            bonds.splice(i, 1);
+        } else {
+            bond.update();
+        }
+    }
+    
+    // Slight auto-rotation (removed from scene, now optional)
+    // scene.rotation.y += 0.001;
+    
+    renderer.render(scene, camera);
+}
+
+// ========= START =========
+loadData().then(() => {
+    animate();
+    updateStats();
+});
+
+</script>
+</body>
+</html>
