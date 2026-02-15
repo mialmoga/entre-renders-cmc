@@ -1,0 +1,715 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Quantum Chemistry 2D • Claude</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
+            user-select: none;
+        }
+
+        body {
+            background: #000000;
+            overflow: hidden;
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            touch-action: none;
+        }
+
+        canvas {
+            display: block;
+            touch-action: none;
+        }
+
+        #ui {
+            position: fixed;
+            top: 15px;
+            left: 15px;
+            background: rgba(0, 0, 0, 0.85);
+            backdrop-filter: blur(15px);
+            padding: 18px;
+            border-radius: 16px;
+            border: 1px solid rgba(100, 200, 255, 0.3);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.8);
+            color: #64c8ff;
+            font-size: 13px;
+            max-width: 300px;
+            transition: all 0.3s ease;
+            z-index: 100;
+        }
+
+        #ui.hidden {
+            transform: translateY(-150%);
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        #ui h3 {
+            margin: 0 0 12px 0;
+            font-size: 16px;
+            color: #ffffff;
+            text-shadow: 0 0 10px rgba(100, 200, 255, 0.5);
+        }
+
+        .stat-row {
+            display: flex;
+            justify-content: space-between;
+            margin: 6px 0;
+            font-size: 12px;
+        }
+
+        .stat-value {
+            color: #ffffff;
+            font-weight: bold;
+        }
+
+        .molecule-panel {
+            position: fixed;
+            top: 15px;
+            right: 15px;
+            background: rgba(0, 0, 0, 0.85);
+            backdrop-filter: blur(15px);
+            padding: 16px;
+            border-radius: 16px;
+            border: 1px solid rgba(100, 200, 255, 0.3);
+            transition: all 0.3s ease;
+            z-index: 99;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            max-height: 60vh;
+            overflow-y: auto;
+            max-width: 300px;
+        }
+
+        .molecule-panel.hidden {
+            transform: translateY(-150%);
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        .molecule-panel-title {
+            font-size: 14px;
+            color: #ffffff;
+            font-weight: 600;
+            text-align: center;
+            margin-bottom: 8px;
+        }
+
+        .control-btn {
+            background: rgba(0, 0, 0, 0.85);
+            backdrop-filter: blur(15px);
+            border: 1px solid rgba(100, 200, 255, 0.3);
+            color: #64c8ff;
+            padding: 10px 14px;
+            border-radius: 12px;
+            cursor: pointer;
+            font-size: 13px;
+            transition: all 0.2s;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+            white-space: nowrap;
+            margin-top: 8px;
+        }
+
+        .control-btn:hover {
+            background: rgba(20, 20, 35, 0.95);
+            border-color: #64c8ff;
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(100, 200, 255, 0.3);
+        }
+
+        .control-btn:active {
+            transform: translateY(0);
+        }
+
+        .element-selector {
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0, 0, 0, 0.85);
+            backdrop-filter: blur(15px);
+            padding: 16px;
+            border-radius: 16px;
+            border: 1px solid rgba(100, 200, 255, 0.3);
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 8px;
+            max-width: 95%;
+            transition: all 0.3s ease;
+            z-index: 100;
+            max-height: 35vh;
+            overflow-y: auto;
+        }
+
+        .element-selector.hidden {
+            transform: translateX(-50%) translateY(150%);
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        .element-btn {
+            background: linear-gradient(135deg, rgba(100, 200, 255, 0.2), rgba(50, 100, 150, 0.2));
+            border: 1px solid rgba(100, 200, 255, 0.5);
+            color: #ffffff;
+            padding: 10px;
+            border-radius: 10px;
+            cursor: pointer;
+            font-size: 11px;
+            font-weight: bold;
+            transition: all 0.2s;
+            min-width: 60px;
+            text-align: center;
+        }
+
+        .element-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 15px rgba(100, 200, 255, 0.4);
+            background: linear-gradient(135deg, rgba(100, 200, 255, 0.4), rgba(50, 100, 150, 0.4));
+        }
+
+        .element-btn:active {
+            transform: translateY(0);
+        }
+
+        .element-btn.selected {
+            background: linear-gradient(135deg, #64c8ff, #3264ff);
+            box-shadow: 0 0 20px rgba(100, 200, 255, 0.8);
+        }
+
+        .element-number {
+            font-size: 9px;
+            opacity: 0.7;
+        }
+
+        .element-symbol {
+            font-size: 16px;
+            margin: 4px 0;
+        }
+
+        .element-name {
+            font-size: 8px;
+            opacity: 0.8;
+        }
+
+        .toggle-btn {
+            position: fixed;
+            top: 15px;
+            right: 50%;
+            transform: translateX(50%);
+            background: linear-gradient(135deg, rgba(100, 200, 255, 0.3), rgba(50, 100, 150, 0.3));
+            border: 2px solid #64c8ff;
+            color: #fff;
+            width: 44px;
+            height: 44px;
+            border-radius: 50%;
+            cursor: pointer;
+            font-size: 18px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.3s;
+            z-index: 101;
+        }
+
+        .toggle-btn.hidden {
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        .collapse-btn {
+            position: fixed;
+            background: rgba(0, 0, 0, 0.85);
+            border: 1px solid rgba(100, 200, 255, 0.3);
+            color: #64c8ff;
+            padding: 8px 12px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 16px;
+            transition: all 0.2s;
+            z-index: 101;
+        }
+
+        .collapse-btn:hover {
+            background: rgba(20, 20, 35, 0.95);
+            border-color: #64c8ff;
+        }
+
+        .collapse-btn.hidden {
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        #collapseUI {
+            left: 10px;
+            top: 50%;
+            transform: translateY(-50%);
+        }
+
+        #collapseElements {
+            bottom: 10px;
+            left: 50%;
+            transform: translateX(-50%);
+        }
+
+        #collapseMolecules {
+            right: 10px;
+            top: 50%;
+            transform: translateY(-50%);
+        }
+    </style>
+</head>
+<body>
+
+<button class="toggle-btn" id="toggleBtn">👁️</button>
+<button class="collapse-btn" id="collapseUI">◀</button>
+<button class="collapse-btn" id="collapseElements">▼</button>
+<button class="collapse-btn" id="collapseMolecules">▶</button>
+
+<div id="ui">
+    <h3>⚛️ Quantum Chemistry 2D</h3>
+    <div class="stat-row">
+        <span>Átomos:</span>
+        <span class="stat-value" id="atomCount">0</span>
+    </div>
+    <div class="stat-row">
+        <span>Moléculas:</span>
+        <span class="stat-value" id="moleculeCount">0</span>
+    </div>
+    <div class="stat-row">
+        <span>Enlaces:</span>
+        <span class="stat-value" id="bondCount">0</span>
+    </div>
+    <div class="stat-row">
+        <span>Seleccionado:</span>
+        <span class="stat-value" id="selectedElement">-</span>
+    </div>
+    <button class="control-btn" id="clearBtn">🗑️ Limpiar</button>
+</div>
+
+<div class="molecule-panel">
+    <div class="molecule-panel-title">Moléculas</div>
+    <div id="moleculeButtons"></div>
+</div>
+
+<div class="element-selector" id="elementSelector"></div>
+
+<canvas id="canvas"></canvas>
+
+<script>
+// ========= LOAD DATA =========
+let ELEMENT_DATABASE = {};
+let MOLECULES = [];
+let selectedElement = null;
+
+async function loadData() {
+    try {
+        const [elementsRes, moleculesRes] = await Promise.all([
+            fetch('elementos.json'),
+            fetch('moleculas.json')
+        ]);
+        
+        ELEMENT_DATABASE = await elementsRes.json();
+        MOLECULES = await moleculesRes.json();
+        
+        Object.values(ELEMENT_DATABASE).forEach(el => {
+            if (typeof el.color === 'string') {
+                el.color = parseInt(el.color, 16);
+            }
+        });
+        
+        initUI();
+    } catch (error) {
+        console.error('Error loading data:', error);
+    }
+}
+
+function initUI() {
+    const grid = document.getElementById('elementSelector');
+    Object.entries(ELEMENT_DATABASE).forEach(([symbol, element]) => {
+        const btn = document.createElement('button');
+        btn.className = 'element-btn';
+        btn.innerHTML = `
+            <div class="element-number">${element.number}</div>
+            <div class="element-symbol">${symbol}</div>
+            <div class="element-name">${element.name}</div>
+        `;
+        btn.addEventListener('click', () => {
+            document.querySelectorAll('.element-btn').forEach(b => b.classList.remove('selected'));
+            btn.classList.add('selected');
+            selectedElement = symbol;
+            document.getElementById('selectedElement').textContent = element.name;
+        });
+        grid.appendChild(btn);
+    });
+    
+    const moleculeContainer = document.getElementById('moleculeButtons');
+    MOLECULES.forEach((mol, idx) => {
+        const btn = document.createElement('button');
+        btn.className = 'control-btn';
+        btn.textContent = `${mol.icon} ${mol.formula}`;
+        btn.title = mol.name;
+        btn.addEventListener('click', () => createMolecule(idx));
+        moleculeContainer.appendChild(btn);
+    });
+}
+
+// ========= CANVAS SETUP =========
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+
+function resize() {
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+}
+resize();
+window.addEventListener('resize', resize);
+
+// ========= ATOM CLASS =========
+class Atom {
+    constructor(x, y, element) {
+        this.x = x;
+        this.y = y;
+        this.vx = 0;
+        this.vy = 0;
+        this.data = ELEMENT_DATABASE[element];
+        this.symbol = element;
+        this.radius = 20;
+        this.bonds = [];
+        this.electrons = this.data.shells[this.data.shells.length - 1];
+    }
+
+    draw() {
+        const color = '#' + this.data.color.toString(16).padStart(6, '0');
+        
+        ctx.shadowBlur = 15;
+        ctx.shadowColor = color;
+        ctx.fillStyle = color;
+        ctx.beginPath();
+        ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.shadowBlur = 0;
+        
+        ctx.fillStyle = '#ffffff';
+        ctx.font = 'bold 14px Arial';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(this.symbol, this.x, this.y);
+        
+        // Available electrons
+        const available = this.electrons - this.bonds.length;
+        for(let i = 0; i < available; i++) {
+            const angle = (i / available) * Math.PI * 2;
+            const ex = this.x + Math.cos(angle) * (this.radius + 8);
+            const ey = this.y + Math.sin(angle) * (this.radius + 8);
+            
+            ctx.fillStyle = '#00ffff';
+            ctx.beginPath();
+            ctx.arc(ex, ey, 3, 0, Math.PI * 2);
+            ctx.fill();
+        }
+    }
+
+    update() {
+        this.x += this.vx;
+        this.y += this.vy;
+        this.vx *= 0.95;
+        this.vy *= 0.95;
+        
+        if(this.x < this.radius) { this.x = this.radius; this.vx *= -0.5; }
+        if(this.x > canvas.width - this.radius) { this.x = canvas.width - this.radius; this.vx *= -0.5; }
+        if(this.y < this.radius) { this.y = this.radius; this.vy *= -0.5; }
+        if(this.y > canvas.height - this.radius) { this.y = canvas.height - this.radius; this.vy *= -0.5; }
+    }
+
+    canBond() {
+        return this.bonds.length < this.data.valence;
+    }
+
+    distanceTo(other) {
+        return Math.hypot(this.x - other.x, this.y - other.y);
+    }
+}
+
+// ========= BOND CLASS =========
+class Bond {
+    constructor(atom1, atom2) {
+        this.atom1 = atom1;
+        this.atom2 = atom2;
+        
+        atom1.bonds.push(this);
+        atom2.bonds.push(this);
+    }
+
+    update() {
+        const dx = this.atom2.x - this.atom1.x;
+        const dy = this.atom2.y - this.atom1.y;
+        const dist = Math.hypot(dx, dy);
+        const targetDist = (this.atom1.radius + this.atom2.radius) * 1.8;
+        
+        if(dist > 0) {
+            const force = (dist - targetDist) * 0.01;
+            const fx = (dx / dist) * force;
+            const fy = (dy / dist) * force;
+            
+            this.atom1.vx += fx;
+            this.atom1.vy += fy;
+            this.atom2.vx -= fx;
+            this.atom2.vy -= fy;
+        }
+    }
+
+    draw() {
+        ctx.strokeStyle = '#64c8ff40';
+        ctx.lineWidth = 6;
+        ctx.beginPath();
+        ctx.moveTo(this.atom1.x, this.atom1.y);
+        ctx.lineTo(this.atom2.x, this.atom2.y);
+        ctx.stroke();
+        
+        ctx.shadowBlur = 8;
+        ctx.shadowColor = '#64c8ff';
+        ctx.strokeStyle = '#64c8ff';
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.moveTo(this.atom1.x, this.atom1.y);
+        ctx.lineTo(this.atom2.x, this.atom2.y);
+        ctx.stroke();
+        ctx.shadowBlur = 0;
+        
+        const dx = this.atom2.x - this.atom1.x;
+        const dy = this.atom2.y - this.atom1.y;
+        const electronCount = 2;
+        for(let i = 0; i < electronCount; i++) {
+            const t = (i / electronCount) + (Date.now() * 0.0005);
+            const x = this.atom1.x + dx * (t % 1);
+            const y = this.atom1.y + dy * (t % 1);
+            
+            ctx.fillStyle = '#ffffff';
+            ctx.beginPath();
+            ctx.arc(x, y, 2, 0, Math.PI * 2);
+            ctx.fill();
+        }
+    }
+
+    isValid() {
+        return atoms.includes(this.atom1) && atoms.includes(this.atom2);
+    }
+}
+
+// ========= SIMULATION =========
+const atoms = [];
+const bonds = [];
+
+function addAtom(x, y, element) {
+    const atom = new Atom(x, y, element);
+    atoms.push(atom);
+    
+    for(let other of atoms) {
+        if(other === atom) continue;
+        if(!atom.canBond() || !other.canBond()) continue;
+        
+        const dist = atom.distanceTo(other);
+        if(dist < 100) {
+            bonds.push(new Bond(atom, other));
+        }
+    }
+    
+    updateStats();
+}
+
+function updateStats() {
+    document.getElementById('atomCount').textContent = atoms.length;
+    
+    const visited = new Set();
+    let moleculeCount = 0;
+    
+    function dfs(atom) {
+        visited.add(atom);
+        atom.bonds.forEach(bond => {
+            const neighbor = bond.atom1 === atom ? bond.atom2 : bond.atom1;
+            if(!visited.has(neighbor)) dfs(neighbor);
+        });
+    }
+    
+    for(const atom of atoms) {
+        if(!visited.has(atom)) {
+            moleculeCount++;
+            dfs(atom);
+        }
+    }
+    
+    document.getElementById('moleculeCount').textContent = moleculeCount;
+    document.getElementById('bondCount').textContent = bonds.length;
+}
+
+function clearAll() {
+    atoms.length = 0;
+    bonds.length = 0;
+    updateStats();
+}
+
+function createMolecule(index) {
+    const mol = MOLECULES[index];
+    // NO CLEAR - add multiple molecules
+    const offsetX = Math.random() * 200 - 100;
+    const offsetY = Math.random() * 200 - 100;
+    const centerX = canvas.width / 2 + offsetX;
+    const centerY = canvas.height / 2 + offsetY;
+    
+    mol.atoms.forEach(atomData => {
+        const scale = 50;
+        addAtom(
+            centerX + atomData.position[0] * scale,
+            centerY + atomData.position[1] * scale,
+            atomData.element
+        );
+    });
+}
+
+// ========= INPUT - PAN WITH 1 FINGER =========
+let isPanning = false;
+let panStart = { x: 0, y: 0 };
+let panMoved = 0;
+const PAN_THRESHOLD = 20; // Higher threshold to avoid accidental atom placement
+
+canvas.addEventListener('mousedown', (e) => {
+    isPanning = true;
+    panStart = { x: e.clientX, y: e.clientY };
+    panMoved = 0;
+});
+
+canvas.addEventListener('mousemove', (e) => {
+    if(isPanning) {
+        const dx = e.clientX - panStart.x;
+        const dy = e.clientY - panStart.y;
+        panMoved += Math.sqrt(dx * dx + dy * dy);
+        
+        // Pan atoms
+        atoms.forEach(atom => {
+            atom.x += dx;
+            atom.y += dy;
+        });
+        
+        panStart = { x: e.clientX, y: e.clientY };
+    }
+});
+
+canvas.addEventListener('mouseup', (e) => {
+    if(isPanning && panMoved < PAN_THRESHOLD && selectedElement) {
+        addAtom(e.clientX, e.clientY, selectedElement);
+    }
+    isPanning = false;
+    panMoved = 0;
+});
+
+// Touch events
+let touchStart = { x: 0, y: 0 };
+let touchMoved = 0;
+
+canvas.addEventListener('touchstart', (e) => {
+    e.preventDefault();
+    const touch = e.touches[0];
+    isPanning = true;
+    touchStart = { x: touch.clientX, y: touch.clientY };
+    panStart = { x: touch.clientX, y: touch.clientY };
+    touchMoved = 0;
+}, { passive: false });
+
+canvas.addEventListener('touchmove', (e) => {
+    e.preventDefault();
+    if(isPanning) {
+        const touch = e.touches[0];
+        const dx = touch.clientX - panStart.x;
+        const dy = touch.clientY - panStart.y;
+        touchMoved += Math.sqrt(dx * dx + dy * dy);
+        
+        atoms.forEach(atom => {
+            atom.x += dx;
+            atom.y += dy;
+        });
+        
+        panStart = { x: touch.clientX, y: touch.clientY };
+    }
+}, { passive: false });
+
+canvas.addEventListener('touchend', (e) => {
+    e.preventDefault();
+    if(isPanning && touchMoved < PAN_THRESHOLD && selectedElement) {
+        addAtom(touchStart.x, touchStart.y, selectedElement);
+    }
+    isPanning = false;
+    touchMoved = 0;
+}, { passive: false });
+
+// ========= UI CONTROLS =========
+document.getElementById('clearBtn').addEventListener('click', clearAll);
+
+document.getElementById('toggleBtn').addEventListener('click', () => {
+    document.getElementById('ui').classList.toggle('hidden');
+    document.querySelector('.molecule-panel').classList.toggle('hidden');
+    document.getElementById('elementSelector').classList.toggle('hidden');
+    document.querySelectorAll('.collapse-btn').forEach(btn => btn.classList.toggle('hidden'));
+});
+
+document.getElementById('collapseUI').addEventListener('click', () => {
+    const ui = document.getElementById('ui');
+    const btn = document.getElementById('collapseUI');
+    const isHidden = ui.classList.contains('hidden');
+    ui.classList.toggle('hidden');
+    btn.textContent = isHidden ? '◀' : '▶';
+});
+
+document.getElementById('collapseElements').addEventListener('click', () => {
+    const selector = document.getElementById('elementSelector');
+    const btn = document.getElementById('collapseElements');
+    const isHidden = selector.classList.contains('hidden');
+    selector.classList.toggle('hidden');
+    btn.textContent = isHidden ? '▼' : '▲';
+});
+
+document.getElementById('collapseMolecules').addEventListener('click', () => {
+    const panel = document.querySelector('.molecule-panel');
+    const btn = document.getElementById('collapseMolecules');
+    const isHidden = panel.classList.contains('hidden');
+    panel.classList.toggle('hidden');
+    btn.textContent = isHidden ? '▶' : '◀';
+});
+
+// ========= ANIMATION LOOP =========
+function animate() {
+    ctx.fillStyle = '#000000';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    
+    bonds.forEach(bond => {
+        bond.update();
+        bond.draw();
+    });
+    
+    atoms.forEach(atom => {
+        atom.update();
+        atom.draw();
+    });
+    
+    for(let i = bonds.length - 1; i >= 0; i--) {
+        if(!bonds[i].isValid()) {
+            bonds.splice(i, 1);
+        }
+    }
+    
+    requestAnimationFrame(animate);
+}
+
+// ========= START =========
+loadData().then(() => {
+    animate();
+    updateStats();
+});
+
+</script>
+</body>
+</html>
