@@ -4,9 +4,19 @@
     "formula": "H₂O",
     "icon": "💧",
     "atoms": [
-      { "element": "H", "position": [-2, 0, 0] },
       { "element": "O", "position": [0, 0, 0] },
-      { "element": "H", "position": [2, 0, 0] }
+      { "element": "H", "position": [0.03, 0, 0] },
+      { "element": "H", "position": [-0.015, 0.026, 0] }
+    ]
+  },
+  {
+    "name": "Dióxido de Carbono",
+    "formula": "CO₂",
+    "icon": "🌫️",
+    "atoms": [
+      { "element": "C", "position": [0, 0, 0] },
+      { "element": "O", "position": [0.04, 0, 0] },
+      { "element": "O", "position": [-0.04, 0, 0] }
     ]
   },
   {
@@ -15,10 +25,21 @@
     "icon": "🔥",
     "atoms": [
       { "element": "C", "position": [0, 0, 0] },
-      { "element": "H", "position": [2, 0, 0] },
-      { "element": "H", "position": [-2, 0, 0] },
-      { "element": "H", "position": [0, 2, 0] },
-      { "element": "H", "position": [0, -2, 0] }
+      { "element": "H", "position": [0.03, 0, 0] },
+      { "element": "H", "position": [-0.03, 0, 0] },
+      { "element": "H", "position": [0, 0.03, 0] },
+      { "element": "H", "position": [0, -0.03, 0] }
+    ]
+  },
+  {
+    "name": "Amoníaco",
+    "formula": "NH₃",
+    "icon": "💨",
+    "atoms": [
+      { "element": "N", "position": [0, 0, 0] },
+      { "element": "H", "position": [0.03, 0, 0] },
+      { "element": "H", "position": [-0.015, 0.026, 0] },
+      { "element": "H", "position": [-0.015, -0.026, 0] }
     ]
   }
 ]
