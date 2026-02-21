@@ -1,6 +1,7 @@
 {
   "proyectos": [
     { "nombre": "WaveSurf Clasic", "archivo": "wavesurfer.html" },
+    { "nombre": "Quantum Chemistry Simulator" "archivo": "https://mialmoga.github.io/quantum-chemistry-simulator/index.html"
     { "nombre": "Bloom", "archivo":"bloom.html" },
     { "nombre": "Quantum-Surf", "archivo": "Quantum-Surf-RollerCoaster.html" },
     { "nombre": "WaveSurf Eter", "archivo": "Quantum-Surf-Classic.html" },
