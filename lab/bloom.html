@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Q-LIA2 | Quantum Liquid</title>
+    <style>
+        body { margin: 0; overflow: hidden; background-color: #000; touch-action: none; }
+        canvas { display: block; }
+    </style>
+</head>
+<body>
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://esm.sh/three@0.160.0",
+                "three/examples/jsm/postprocessing/EffectComposer.js": "https://esm.sh/three@0.160.0/examples/jsm/postprocessing/EffectComposer.js",
+                "three/examples/jsm/postprocessing/RenderPass.js": "https://esm.sh/three@0.160.0/examples/jsm/postprocessing/RenderPass.js",
+                "three/examples/jsm/postprocessing/UnrealBloomPass.js": "https://esm.sh/three@0.160.0/examples/jsm/postprocessing/UnrealBloomPass.js"
+            }
+        }
+    </script>
+    <script type="x-shader/x-vertex" id="vertexshader">
+    varying vec2 vUv;
+    void main() {
+        vUv = uv;
+        gl_Position = projectionMatrix * modelViewMatrix * vec4( position, 1.0 );
+    }
+</script>
+
+<script type="x-shader/x-fragment" id="fragmentshader">
+    uniform sampler2D baseTexture;
+    uniform sampler2D bloomTexture;
+    varying vec2 vUv;
+    void main() {
+        gl_FragColor = ( texture2D( baseTexture, vUv ) + texture2D( bloomTexture, vUv ) );
+    }
+</script>
+
+    <script type="module" src="main.js?v=1.1"></script> 
+    
+    
+</body>
+</html>
