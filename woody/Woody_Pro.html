@@ -1,0 +1,1249 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Wood Tetris — Studio</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; user-select: none; -webkit-tap-highlight-color: transparent; }
+  html, body { width: 100%; height: 100%; overflow: hidden; background: #d8c8a8; font-family: 'Georgia', serif; touch-action: none; }
+  #app { position: fixed; inset: 0; }
+  canvas { display: block; }
+
+  .hud {
+    position: fixed; top: 0; left: 0; right: 0;
+    padding: 16px 22px;
+    display: flex; justify-content: space-between; align-items: flex-start;
+    pointer-events: none;
+    z-index: 10;
+    color: #3a2818;
+    text-shadow: 0 1px 2px rgba(255, 240, 220, 0.5);
+  }
+  .hud-block { display: flex; flex-direction: column; gap: 2px; }
+  .hud-block.right { align-items: flex-end; }
+  .label { font-size: 9px; letter-spacing: 0.3em; text-transform: uppercase; opacity: 0.55; font-family: 'Helvetica Neue', sans-serif; font-weight: 500; }
+  .value { font-size: 26px; font-weight: 300; letter-spacing: 0.04em; font-variant-numeric: tabular-nums; }
+  .value.small { font-size: 16px; }
+
+  .hint {
+    position: fixed; bottom: 16px; left: 50%; transform: translateX(-50%);
+    color: #3a2818; opacity: 0.4; font-size: 10px; letter-spacing: 0.22em; text-transform: uppercase;
+    font-family: 'Helvetica Neue', sans-serif; font-weight: 500;
+    pointer-events: none; text-align: center;
+  }
+
+  .overlay {
+    position: fixed; inset: 0;
+    background: rgba(216, 200, 168, 0.85);
+    backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+    display: none; flex-direction: column; align-items: center; justify-content: center;
+    z-index: 20; color: #3a2818;
+    font-family: 'Georgia', serif;
+    padding: 20px;
+  }
+  .overlay.show { display: flex; }
+  .overlay h1 { font-size: 36px; font-weight: 300; letter-spacing: 0.18em; margin-bottom: 10px; text-transform: uppercase; }
+  .overlay p { font-size: 12px; letter-spacing: 0.22em; opacity: 0.55; text-transform: uppercase; margin-bottom: 32px; font-family: 'Helvetica Neue', sans-serif; font-weight: 500; }
+  .overlay button {
+    background: transparent; border: 1px solid #3a2818;
+    color: #3a2818; padding: 14px 38px;
+    font-family: 'Helvetica Neue', sans-serif; font-size: 10px; letter-spacing: 0.32em; text-transform: uppercase; font-weight: 500;
+    cursor: pointer; transition: all 0.3s ease;
+  }
+  .overlay button:hover, .overlay button:active { background: #3a2818; color: #f5e8d0; }
+
+  /* === Pantalla de logro (GROVE) === */
+  .grove {
+    display: none;
+    flex-direction: column; align-items: center;
+    text-align: center;
+    color: #3a2818;
+    font-family: 'Georgia', serif;
+    animation: groveFadeIn 0.8s ease forwards;
+  }
+  .grove.show { display: flex; }
+  @keyframes groveFadeIn {
+    from { opacity: 0; transform: translateY(20px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  .grove-title {
+    font-size: 12px; letter-spacing: 0.4em; text-transform: uppercase;
+    font-family: 'Helvetica Neue', sans-serif; font-weight: 500;
+    opacity: 0.5;
+    margin-bottom: 6px;
+  }
+  .grove-subtitle {
+    font-size: 28px; font-weight: 300; letter-spacing: 0.06em;
+    margin-bottom: 48px;
+    font-style: italic;
+    opacity: 0.85;
+  }
+  .grove-stats {
+    display: flex; flex-direction: column; gap: 28px; align-items: center;
+    margin-bottom: 56px;
+  }
+  .grove-stat { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+  .grove-stat-label {
+    font-size: 10px; letter-spacing: 0.35em; text-transform: uppercase;
+    font-family: 'Helvetica Neue', sans-serif; font-weight: 500;
+    opacity: 0.5;
+  }
+  .grove-stat-value {
+    font-size: 56px; font-weight: 200; letter-spacing: 0.02em;
+    font-variant-numeric: tabular-nums;
+    line-height: 1;
+  }
+  .grove-stat-value.big { font-size: 72px; }
+  .grove-divider {
+    width: 40px; height: 1px;
+    background: rgba(58, 40, 24, 0.25);
+    margin: 0 0 24px;
+  }
+  .grove-btn {
+    background: transparent; border: 1px solid #3a2818;
+    color: #3a2818; padding: 16px 44px;
+    font-family: 'Helvetica Neue', sans-serif; font-size: 11px; letter-spacing: 0.34em; text-transform: uppercase; font-weight: 500;
+    cursor: pointer; transition: all 0.3s ease;
+  }
+  .grove-btn:hover, .grove-btn:active { background: #3a2818; color: #f5e8d0; }
+
+  .touch-controls {
+    position: fixed; bottom: 0; left: 0; right: 0;
+    display: none;
+    z-index: 5;
+    padding: 0 6px 6px;
+    padding-bottom: max(env(safe-area-inset-bottom, 0), 6px);
+  }
+  .touch-controls.show { display: flex; gap: 4px; }
+  .tc-btn {
+    flex: 1;
+    background: rgba(58, 40, 24, 0.07);
+    border: 1px solid rgba(58, 40, 24, 0.12);
+    color: #3a2818;
+    padding: 14px 0;
+    border-radius: 4px;
+    font-family: 'Helvetica Neue', sans-serif; font-size: 18px;
+    backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px);
+    cursor: pointer; transition: background 0.15s;
+  }
+  .tc-btn:active { background: rgba(58, 40, 24, 0.18); }
+
+  .pause-btn {
+    position: fixed; top: 14px; left: 50%; transform: translateX(-50%);
+    background: rgba(58, 40, 24, 0.08);
+    border: 1px solid rgba(58, 40, 24, 0.15);
+    color: #3a2818; opacity: 0.6;
+    width: 38px; height: 38px;
+    border-radius: 4px;
+    font-size: 14px;
+    cursor: pointer; z-index: 11;
+    backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px);
+  }
+  .pause-btn:active { opacity: 1; }
+
+  #loading {
+    position: fixed; inset: 0;
+    display: flex; align-items: center; justify-content: center;
+    color: #3a2818;
+    font-family: 'Helvetica Neue', sans-serif;
+    font-size: 11px; letter-spacing: 0.3em; text-transform: uppercase; font-weight: 500;
+    opacity: 0.6;
+    z-index: 30;
+    background: #d8c8a8;
+  }
+  /* ===== MODAL DE INICIO ===== */
+  #startModal {
+    position: fixed; inset: 0; z-index: 100;
+    display: flex; align-items: center; justify-content: center;
+    background: #c8b48a;
+    transition: opacity 0.6s ease;
+  }
+  #startModal.hidden { opacity: 0; pointer-events: none; }
+
+  .start-inner {
+    position: relative; width: 100%; height: 100%;
+    display: flex; align-items: center; justify-content: center;
+    overflow: hidden;
+  }
+
+  /* Textura de grano simulada con gradiente radial */
+  .start-grain {
+    position: absolute; inset: 0;
+    background:
+      radial-gradient(ellipse 80% 60% at 30% 40%, rgba(180,140,90,0.35) 0%, transparent 70%),
+      radial-gradient(ellipse 60% 80% at 70% 60%, rgba(140,100,60,0.25) 0%, transparent 70%),
+      repeating-linear-gradient(
+        88deg,
+        transparent 0px, transparent 18px,
+        rgba(100,65,30,0.04) 18px, rgba(100,65,30,0.04) 19px
+      );
+  }
+
+  .start-content {
+    position: relative; z-index: 1;
+    display: flex; flex-direction: column; align-items: center;
+    gap: 0;
+  }
+
+  .start-label {
+    font-family: 'Helvetica Neue', sans-serif;
+    font-size: 10px; font-weight: 500;
+    letter-spacing: 0.45em; text-transform: uppercase;
+    color: #5a3a1a; opacity: 0.5;
+    margin-bottom: 20px;
+  }
+
+  .start-title {
+    font-size: 72px; line-height: 1;
+    margin-bottom: 14px;
+    filter: drop-shadow(0 4px 12px rgba(80,45,10,0.3));
+  }
+
+  .start-sub {
+    font-family: 'Georgia', serif;
+    font-size: 15px; font-weight: 300;
+    font-style: italic;
+    color: #4a2e10; opacity: 0.65;
+    letter-spacing: 0.08em;
+    margin-bottom: 52px;
+  }
+
+  .start-btn {
+    background: #4a2e10;
+    border: none;
+    color: #f5e8d0;
+    padding: 18px 56px;
+    font-family: 'Helvetica Neue', sans-serif;
+    font-size: 11px; font-weight: 500;
+    letter-spacing: 0.4em; text-transform: uppercase;
+    cursor: pointer;
+    border-radius: 2px;
+    transition: background 0.2s, transform 0.1s, opacity 0.3s;
+    opacity: 0.45;
+    margin-bottom: 20px;
+  }
+  .start-btn:not(:disabled) { opacity: 1; }
+  .start-btn:not(:disabled):active {
+    background: #2a1a06;
+    transform: scale(0.97);
+  }
+
+  .start-hint {
+    font-family: 'Helvetica Neue', sans-serif;
+    font-size: 9px; font-weight: 400;
+    letter-spacing: 0.3em; text-transform: uppercase;
+    color: #5a3a1a; opacity: 0.4;
+  }
+</style>
+</head>
+<body>
+  <div id="startModal">
+    <div class="start-inner">
+      <div class="start-grain"></div>
+      <div class="start-content">
+        <div class="start-label">Wood Tetris</div>
+        <div class="start-title">🪵</div>
+        <div class="start-sub">a zen block game</div>
+        <button id="startBtn" class="start-btn" disabled>
+          <span id="startBtnText">Loading…</span>
+        </button>
+        <div class="start-hint" id="startHint">preparing textures</div>
+      </div>
+    </div>
+  </div>
+  <div id="app"></div>
+
+  <div class="hud">
+    <div class="hud-block">
+      <span class="label">Score</span>
+      <span class="value" id="score">0</span>
+    </div>
+    <div class="hud-block right">
+      <span class="label">Lines</span>
+      <span class="value small" id="lines">0</span>
+      <span class="label" style="margin-top: 8px;">Level</span>
+      <span class="value small" id="level">1</span>
+    </div>
+  </div>
+
+  <button class="pause-btn" id="pauseBtn">⏸</button>
+
+  <div class="hint" id="hint">← → MOVE  ·  ↑ ROTATE  ·  ↓ DROP  ·  SPACE HARD DROP</div>
+
+  <div class="touch-controls" id="touchControls">
+    <button class="tc-btn" data-action="left">◀</button>
+    <button class="tc-btn" data-action="rotate">↻</button>
+    <button class="tc-btn" data-action="right">▶</button>
+    <button class="tc-btn" data-action="soft">▼</button>
+    <button class="tc-btn" data-action="hard">⤓</button>
+  </div>
+
+  <div class="overlay" id="overlay">
+    <!-- Estado: Paused (simple) -->
+    <div id="pauseView">
+      <h1 id="overlayTitle">Paused</h1>
+      <p id="overlaySubtitle">Take a breath</p>
+      <button id="overlayBtn">Resume</button>
+    </div>
+
+    <!-- Estado: Grove (logro de fin de partida) -->
+    <div class="grove" id="groveView">
+      <div class="grove-title">Your Grove</div>
+      <div class="grove-subtitle">what you grew today</div>
+
+      <div class="grove-stats">
+        <div class="grove-stat">
+          <div class="grove-stat-label">Lines</div>
+          <div class="grove-stat-value big" id="groveLines">0</div>
+        </div>
+        <div class="grove-stat">
+          <div class="grove-stat-label">Points</div>
+          <div class="grove-stat-value" id="grovePoints">0</div>
+        </div>
+        <div class="grove-stat">
+          <div class="grove-stat-label">Level Reached</div>
+          <div class="grove-stat-value" id="groveLevel" style="font-size: 36px;">1</div>
+        </div>
+      </div>
+
+      <div class="grove-divider"></div>
+      <button class="grove-btn" id="groveBtn">Plant another →</button>
+    </div>
+  </div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.163.0/build/three.module.js",
+    "three/addons/": "https://unpkg.com/three@0.163.0/examples/jsm/"
+  }
+}
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+import { SSAOPass } from 'three/addons/postprocessing/SSAOPass.js';
+import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
+
+// ===== AUDIO ENGINE — lazy init para mobile =====
+// En mobile, AudioContext DEBE crearse dentro de un gesto del usuario.
+// Usamos un flag para crearlo una sola vez en el primer touch/click.
+let audioCtx = null;
+const audioBuffers = {};
+let audioReady = false;
+let audioInitStarted = false;
+
+async function initAudio() {
+  if (audioInitStarted) return;
+  audioInitStarted = true;
+  try {
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    await audioCtx.resume();
+    // Cargar los 4 samples ahora que el contexto está activo
+    await Promise.all([
+      loadSound('clac'),
+      loadSound('slip'),
+      loadSound('cascada'),
+      loadSound('cascada2'),
+    ]);
+    audioReady = true;
+  } catch(e) {
+    console.warn('Audio init failed:', e);
+  }
+}
+
+async function loadSound(name) {
+  try {
+    const res = await fetch(`./sounds/${name}.mp3`);
+    const arrayBuffer = await res.arrayBuffer();
+    audioBuffers[name] = await audioCtx.decodeAudioData(arrayBuffer);
+  } catch(e) {
+    console.warn(`Sound ${name} not loaded:`, e);
+  }
+}
+
+function playSound(name, { pitch = 1.0, gain = 1.0, delay = 0 } = {}) {
+  if (!audioReady || !audioBuffers[name]) return;
+  try {
+    const source = audioCtx.createBufferSource();
+    source.buffer = audioBuffers[name];
+    source.playbackRate.value = pitch;
+    const gainNode = audioCtx.createGain();
+    gainNode.gain.value = gain;
+    source.connect(gainNode);
+    gainNode.connect(audioCtx.destination);
+    source.start(audioCtx.currentTime + delay);
+  } catch(e) {}
+}
+
+// Vibración
+function vibrate(pattern) {
+  if (navigator.vibrate) navigator.vibrate(pattern);
+}
+
+// El audio se inicializa en el botón START (gesto garantizado del usuario)
+// ===== CONFIG =====
+const COLS = 10;
+const ROWS = 20;
+const CUBE_SIZE = 1.0;
+const PARTICLE_LIFE = 2.2;
+const GRAVITY = -28;
+
+// ===== TEXTURE LOAD =====
+// Convención de nombres de Velvet/Éter:
+// wood1 = tablero claro (roble), wood2 = piezas oscuras (caoba)
+// _n = normal map, _r = roughness map
+const loader = new THREE.TextureLoader();
+
+function loadTexture(path, isColor = false) {
+  return new Promise((resolve, reject) => {
+    loader.load(
+      path,
+      (tex) => {
+        tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+        tex.anisotropy = 8;
+        if (isColor) tex.colorSpace = THREE.SRGBColorSpace;
+        resolve(tex);
+      },
+      undefined,
+      reject
+    );
+  });
+}
+
+function loadWoodSet(baseName) {
+  return Promise.all([
+    loadTexture(`./img/${baseName}.png`, true),
+    loadTexture(`./img/${baseName}_n.png`, false),
+    loadTexture(`./img/${baseName}_r.png`, false),
+  ]).then(([map, normalMap, roughnessMap]) => ({ map, normalMap, roughnessMap }));
+}
+
+// ===== SHAPES =====
+const SHAPES = {
+  I: [[0,1],[1,1],[2,1],[3,1]],
+  O: [[0,0],[1,0],[0,1],[1,1]],
+  T: [[0,1],[1,1],[2,1],[1,0]],
+  S: [[1,0],[2,0],[0,1],[1,1]],
+  Z: [[0,0],[1,0],[1,1],[2,1]],
+  J: [[0,0],[0,1],[1,1],[2,1]],
+  L: [[2,0],[0,1],[1,1],[2,1]],
+};
+const SHAPE_KEYS = Object.keys(SHAPES);
+
+// ===== SCENE SETUP =====
+const app = document.getElementById('app');
+const scene = new THREE.Scene();
+scene.background = new THREE.Color('#e8d4b0');
+scene.fog = new THREE.Fog('#e8d4b0', 35, 60);
+
+const camera = new THREE.PerspectiveCamera(35, window.innerWidth / window.innerHeight, 0.1, 100);
+
+const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.05;
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+app.appendChild(renderer.domElement);
+
+// ===== POST-PROCESSING (SSAO) =====
+const composer = new EffectComposer(renderer);
+composer.addPass(new RenderPass(scene, camera));
+
+const ssaoPass = new SSAOPass(scene, camera, window.innerWidth, window.innerHeight);
+ssaoPass.kernelRadius = 0.6;
+ssaoPass.minDistance = 0.002;
+ssaoPass.maxDistance = 0.08;
+composer.addPass(ssaoPass);
+
+composer.addPass(new OutputPass());
+
+// ===== ILUMINACIÓN =====
+const ambient = new THREE.AmbientLight(0xfff0d8, 0.55);
+scene.add(ambient);
+
+const hemi = new THREE.HemisphereLight(0xfff0d8, 0xc8a878, 0.45);
+hemi.position.set(0, 20, 0);
+scene.add(hemi);
+
+const keyLight = new THREE.DirectionalLight(0xfff5e0, 1.8);
+keyLight.position.set(-8, 18, 14);
+keyLight.castShadow = true;
+keyLight.shadow.mapSize.set(2048, 2048);
+keyLight.shadow.camera.near = 1;
+keyLight.shadow.camera.far = 60;
+keyLight.shadow.camera.left = -16;
+keyLight.shadow.camera.right = 16;
+keyLight.shadow.camera.top = 22;
+keyLight.shadow.camera.bottom = -22;
+keyLight.shadow.bias = -0.0003;
+keyLight.shadow.normalBias = 0.02;
+keyLight.shadow.radius = 5;
+scene.add(keyLight);
+
+const fillLight = new THREE.DirectionalLight(0xffe0c0, 0.35);
+fillLight.position.set(10, 6, 8);
+scene.add(fillLight);
+
+// ===== STATE =====
+let pieceMaterial, boardMaterial, cubeGeo;
+let boardGroup;
+const animations = [];
+const fallingBlocks = [];
+
+const board = [];
+for (let r = 0; r < ROWS; r++) {
+  const row = [];
+  for (let c = 0; c < COLS; c++) row.push(null);
+  board.push(row);
+}
+
+let currentPiece = null;
+let nextShape = null;
+let dropTimer = 0;
+let dropInterval = 0.8;
+let score = 0;
+let lines = 0;
+let level = 1;
+let gameOver = false;
+let paused = false;
+let started = false;
+
+const scoreEl = document.getElementById('score');
+const linesEl = document.getElementById('lines');
+const levelEl = document.getElementById('level');
+// ===== INIT =====
+// Fase 1: carga silenciosa en background mientras se muestra el modal
+const startModal = document.getElementById('startModal');
+const startBtn = document.getElementById('startBtn');
+const startBtnText = document.getElementById('startBtnText');
+const startHint = document.getElementById('startHint');
+
+let assetsReady = false;
+let woodTextures = null;
+
+(async function loadAssets() {
+  try {
+    const [wood1, wood2] = await Promise.all([
+      loadWoodSet('wood1'),
+      loadWoodSet('wood2'),
+    ]);
+    woodTextures = { wood1, wood2 };
+    assetsReady = true;
+    // Habilitar el botón de start
+    startBtn.disabled = false;
+    startBtnText.textContent = 'Start';
+    startHint.textContent = 'tap to begin · fullscreen · sound on';
+  } catch(err) {
+    console.error('Asset load failed:', err);
+    startHint.textContent = 'error loading textures — check /img/';
+  }
+})();
+
+// Fase 2: arranque al presionar START
+startBtn.addEventListener('click', async () => {
+  if (!assetsReady) return;
+
+  // 1. AudioContext + sonidos (dentro del gesto del usuario → garantizado en mobile)
+  await initAudio();
+
+  // 2. Fullscreen
+  const el = document.documentElement;
+  try {
+    if (el.requestFullscreen) await el.requestFullscreen();
+    else if (el.webkitRequestFullscreen) await el.webkitRequestFullscreen();
+  } catch(e) { /* fullscreen no siempre disponible, no es crítico */ }
+
+  // 3. Ocultar modal con fade
+  startModal.classList.add('hidden');
+  setTimeout(() => { startModal.style.display = 'none'; }, 650);
+
+  // 4. Inicializar la escena 3D con las texturas ya cargadas
+  await setupScene(woodTextures.wood1, woodTextures.wood2);
+});
+
+async function setupScene(wood1, wood2) {
+
+  // Material de pieza: usa wood2 (la madera oscura tipo caoba/cerezo)
+  // Las UVs se modifican por cubo individualmente para que cada uno muestre
+  // un trozo distinto de la textura → variedad realista (truco de Éter)
+  pieceMaterial = new THREE.MeshStandardMaterial({
+    map: wood2.map,
+    normalMap: wood2.normalMap,
+    roughnessMap: wood2.roughnessMap,
+    roughness: 1.0,
+    metalness: 0.0,
+    normalScale: new THREE.Vector2(0.7, 0.7),
+  });
+
+  cubeGeo = new THREE.BoxGeometry(CUBE_SIZE * 0.98, CUBE_SIZE * 0.98, CUBE_SIZE * 0.98);
+
+  // Material del tablero: usa wood1 (madera clara tipo roble) tileada
+  const bgMap = wood1.map.clone();
+  const bgNormal = wood1.normalMap.clone();
+  const bgRough = wood1.roughnessMap.clone();
+  for (const t of [bgMap, bgNormal, bgRough]) {
+    t.wrapS = t.wrapT = THREE.RepeatWrapping;
+    t.repeat.set(2.5, 3.5);
+    t.needsUpdate = true;
+  }
+  bgMap.colorSpace = THREE.SRGBColorSpace;
+
+  boardMaterial = new THREE.MeshStandardMaterial({
+    map: bgMap,
+    normalMap: bgNormal,
+    roughnessMap: bgRough,
+    roughness: 1.0,
+    metalness: 0.0,
+    normalScale: new THREE.Vector2(0.4, 0.4),
+  });
+
+  const boardWidth = COLS * CUBE_SIZE;
+  const boardHeight = ROWS * CUBE_SIZE;
+
+  // Tablero: caja delgada para que el SSAO le agarre borde
+  const bgBox = new THREE.Mesh(
+    new THREE.BoxGeometry(boardWidth, boardHeight, 0.6),
+    boardMaterial
+  );
+  bgBox.position.z = -0.8;
+  bgBox.receiveShadow = true;
+  bgBox.castShadow = true;
+  scene.add(bgBox);
+
+  // Mesa de fondo grande
+  const tableMap = wood1.map.clone();
+  const tableNormal = wood1.normalMap.clone();
+  for (const t of [tableMap, tableNormal]) {
+    t.wrapS = t.wrapT = THREE.RepeatWrapping;
+    t.repeat.set(8, 8);
+    t.needsUpdate = true;
+  }
+  tableMap.colorSpace = THREE.SRGBColorSpace;
+
+  const tablePlane = new THREE.Mesh(
+    new THREE.PlaneGeometry(80, 80),
+    new THREE.MeshStandardMaterial({
+      map: tableMap,
+      normalMap: tableNormal,
+      roughness: 0.95,
+      metalness: 0,
+      color: 0xb89868,
+      normalScale: new THREE.Vector2(0.2, 0.2),
+    })
+  );
+  tablePlane.position.z = -2.5;
+  tablePlane.receiveShadow = true;
+  scene.add(tablePlane);
+
+  boardGroup = new THREE.Group();
+  scene.add(boardGroup);
+
+  started = true;
+  resize();
+  spawnPiece();
+  updateHUD();
+}
+
+// ===== HELPERS =====
+function gridToWorld(col, row) {
+  return {
+    x: (col - COLS / 2 + 0.5) * CUBE_SIZE,
+    y: (ROWS / 2 - row - 0.5) * CUBE_SIZE,
+  };
+}
+
+// Crea un cubo con UVs específicas por cara — permite continuidad de veta entre cubos
+// de una misma pieza ("cortados del mismo tronco").
+// localX/localY = posición del cubo dentro de la pieza (en unidades de cubo)
+// pieceWidth/pieceHeight = dimensiones de la pieza (en cubos)
+// uBase/vBase = offset random de la pieza dentro del atlas (0..0.5)
+// uSpan = tamaño del sample por pieza (típicamente 0.4-0.5)
+function makeCube(localX, localY, pieceWidth, pieceHeight, uBase, vBase, uSpan) {
+  const geo = cubeGeo.clone();
+  const uvs = geo.attributes.uv;
+
+  // BoxGeometry tiene 6 caras × 4 vértices = 24 vértices con UVs.
+  // El orden de las caras en r163 es: +X, -X, +Y, -Y, +Z, -Z
+  // UVs originales por cara: (0,1), (1,1), (0,0), (1,0)
+  //
+  // Estrategia: solo las caras frontal (+Z) y trasera (-Z) y las laterales (+X, -X, +Y, -Y)
+  // que son visibles desde la cámara comparten coordenadas continuas.
+  // Como la cámara mira casi de frente, lo que importa es la cara +Z.
+  //
+  // Para CADA cara, mapeamos las UVs a la región (uBase + localX/pieceWidth * uSpan,
+  // vBase + (pieceHeight-1-localY)/pieceHeight * vSpan) hasta el siguiente cubo.
+
+  const uPerCube = uSpan / pieceWidth;
+  const vPerCube = uSpan / pieceHeight;
+  // Coordenadas globales dentro del atlas para este cubo concreto
+  const uMin = uBase + localX * uPerCube;
+  const vMin = vBase + (pieceHeight - 1 - localY) * vPerCube;
+  const uMax = uMin + uPerCube;
+  const vMax = vMin + vPerCube;
+
+  // Para cada cara, reescribir las 4 UVs.
+  // Las caras frontal/trasera (+Z, -Z, índices 4 y 5) usan el mapeo directo localX/localY.
+  // Las laterales (+X, -X, +Y, -Y) las mapeamos también dentro del rango pero "rotadas"
+  // para que la veta vertical de la madera quede vertical en todas las caras.
+  //
+  // Simplificación: a todas las caras les damos el mismo rango uMin..uMax / vMin..vMax.
+  // El BoxGeometry de three.js usa este orden de UV por cara (en cada uno de los 4 vertices):
+  //   v0: (0, 1)  v1: (1, 1)  v2: (0, 0)  v3: (1, 0)
+  // Eso lo remapeamos a (uMin, vMax), (uMax, vMax), (uMin, vMin), (uMax, vMin)
+
+  for (let face = 0; face < 6; face++) {
+    const base = face * 4;
+    // Vertex 0: (0,1) → (uMin, vMax)
+    uvs.setXY(base + 0, uMin, vMax);
+    // Vertex 1: (1,1) → (uMax, vMax)
+    uvs.setXY(base + 1, uMax, vMax);
+    // Vertex 2: (0,0) → (uMin, vMin)
+    uvs.setXY(base + 2, uMin, vMin);
+    // Vertex 3: (1,0) → (uMax, vMin)
+    uvs.setXY(base + 3, uMax, vMin);
+  }
+  uvs.needsUpdate = true;
+
+  const mesh = new THREE.Mesh(geo, pieceMaterial);
+  mesh.castShadow = true;
+  mesh.receiveShadow = true;
+  return mesh;
+}
+
+// ===== GAME LOGIC =====
+function spawnPiece() {
+  if (!started) return;
+  const shapeKey = nextShape || SHAPE_KEYS[Math.floor(Math.random() * SHAPE_KEYS.length)];
+  nextShape = SHAPE_KEYS[Math.floor(Math.random() * SHAPE_KEYS.length)];
+
+  const shape = SHAPES[shapeKey].map(([x, y]) => [x, y]);
+  const minX = Math.min(...shape.map(s => s[0]));
+  const maxX = Math.max(...shape.map(s => s[0]));
+  const minY = Math.min(...shape.map(s => s[1]));
+  const maxY = Math.max(...shape.map(s => s[1]));
+  const pieceWidth = maxX - minX + 1;
+  const pieceHeight = maxY - minY + 1;
+  const offsetX = Math.floor((COLS - pieceWidth) / 2) - minX;
+  const offsetY = -1;
+
+  // === CONTINUIDAD DE VETA ===
+  // Sample aleatorio de la textura para esta pieza completa.
+  // uSpan = tamaño del trozo de textura asignado a la pieza (40% del atlas).
+  // Cuanto mayor, más grano grueso por cubo; cuanto menor, más detalle pero menos variedad.
+  const uSpan = 0.4;
+  const uBase = Math.random() * (1 - uSpan);
+  const vBase = Math.random() * (1 - uSpan);
+
+  const piece = { shape, blocks: [], shapeKey };
+  for (const [x, y] of shape) {
+    const col = x + offsetX;
+    const row = y + offsetY;
+    // Coordenadas locales dentro de la pieza (0..pieceWidth-1, 0..pieceHeight-1)
+    const localX = x - minX;
+    const localY = y - minY;
+    const mesh = makeCube(localX, localY, pieceWidth, pieceHeight, uBase, vBase, uSpan);
+    boardGroup.add(mesh);
+    const pos = gridToWorld(col, row);
+    mesh.position.set(pos.x, pos.y, 0);
+    piece.blocks.push({ col, row, mesh });
+  }
+
+  if (collides(piece, 0, 0)) {
+    // FIX BUG 2: limpiar los meshes recién creados antes de game-over,
+    // si no quedan huérfanos en boardGroup y aparecen como fantasma.
+    for (const b of piece.blocks) {
+      boardGroup.remove(b.mesh);
+      if (b.mesh.geometry) b.mesh.geometry.dispose();
+    }
+    triggerGameOver();
+    return;
+  }
+  currentPiece = piece;
+}
+
+function collides(piece, dCol, dRow, newBlocks = null) {
+  const blocks = newBlocks || piece.blocks;
+  for (const b of blocks) {
+    const c = b.col + dCol;
+    const r = b.row + dRow;
+    if (c < 0 || c >= COLS || r >= ROWS) return true;
+    if (r >= 0 && board[r][c]) return true;
+  }
+  return false;
+}
+
+function move(dCol, dRow) {
+  if (!currentPiece || gameOver || paused) return false;
+  if (collides(currentPiece, dCol, dRow)) return false;
+  for (const b of currentPiece.blocks) {
+    b.col += dCol;
+    b.row += dRow;
+    const pos = gridToWorld(b.col, b.row);
+    b.mesh.position.set(pos.x, pos.y, 0);
+  }
+  // Slip suave solo al mover lateralmente (no al bajar)
+  if (dCol !== 0) playSound('slip', { gain: 0.28, pitch: 0.95 + Math.random() * 0.1 });
+  return true;
+}
+
+function rotate() {
+  if (!currentPiece || gameOver || paused) return;
+  if (currentPiece.shapeKey === 'O') return;
+
+  const cx = currentPiece.blocks.reduce((s, b) => s + b.col, 0) / 4;
+  const cy = currentPiece.blocks.reduce((s, b) => s + b.row, 0) / 4;
+  const px = Math.round(cx);
+  const py = Math.round(cy);
+
+  const newBlocks = currentPiece.blocks.map(b => {
+    const dx = b.col - px;
+    const dy = b.row - py;
+    return { col: px - dy, row: py + dx, mesh: b.mesh };
+  });
+
+  const kicks = [[0,0],[1,0],[-1,0],[0,-1],[2,0],[-2,0]];
+  for (const [kx, ky] of kicks) {
+    const candidate = newBlocks.map(b => ({ ...b, col: b.col + kx, row: b.row + ky }));
+    if (!collides({ blocks: candidate }, 0, 0)) {
+      for (let i = 0; i < currentPiece.blocks.length; i++) {
+        currentPiece.blocks[i].col = candidate[i].col;
+        currentPiece.blocks[i].row = candidate[i].row;
+        const pos = gridToWorld(candidate[i].col, candidate[i].row);
+        currentPiece.blocks[i].mesh.position.set(pos.x, pos.y, 0);
+      }
+      return;
+    }
+  }
+}
+
+function lockPiece() {
+  if (!currentPiece) return;
+  for (const b of currentPiece.blocks) {
+    if (b.row >= 0 && b.row < ROWS) {
+      board[b.row][b.col] = b.mesh;
+    } else {
+      triggerGameOver();
+      return;
+    }
+  }
+  // Sonido de aterrizaje: clac con pitch levemente random → cada pieza suena única
+  playSound('clac', { pitch: 0.92 + Math.random() * 0.16, gain: 0.85 });
+  // Vibración muy sutil: 18ms, casi imperceptible pero el cerebro lo registra
+  vibrate(18);
+
+  currentPiece = null;
+  checkLines();
+  if (!gameOver) spawnPiece();
+}
+
+function checkLines() {
+  const fullRows = [];
+  for (let r = 0; r < ROWS; r++) {
+    if (board[r].every(c => c !== null)) fullRows.push(r);
+  }
+  if (fullRows.length === 0) return;
+
+  // Set para lookup rápido
+  const fullRowSet = new Set(fullRows);
+
+  // ===== SHATTER: 1 BLOQUE ENTERO POR CUADRO, CASCADA L→R =====
+  for (const r of fullRows) {
+    for (let c = 0; c < COLS; c++) {
+      const mesh = board[r][c];
+      if (mesh) {
+        const delay = c * 0.04;
+        const vx = 2 + Math.random() * 2;
+        const vy = 1 + Math.random() * 1.5;
+        const vz = 4 + Math.random() * 3;
+
+        boardGroup.remove(mesh);
+        scene.add(mesh);
+
+        fallingBlocks.push({
+          mesh,
+          vx, vy, vz,
+          rx: (Math.random() - 0.5) * 4,
+          ry: (Math.random() - 0.5) * 4,
+          rz: (Math.random() - 0.5) * 4,
+          age: -delay,
+          life: PARTICLE_LIFE,
+        });
+        board[r][c] = null;
+      }
+    }
+  }
+
+  // ===== FIX BUG 1: ALGORITMO CORRECTO PARA BAJAR FILAS =====
+  // Construimos el nuevo board de cero recolectando solo las filas que NO fueron eliminadas,
+  // de abajo hacia arriba. Cada fila sobreviviente se reposiciona a la siguiente fila libre
+  // empezando desde el fondo.
+  const newBoard = [];
+  for (let r = 0; r < ROWS; r++) newBoard.push(new Array(COLS).fill(null));
+
+  let writeRow = ROWS - 1;
+  for (let r = ROWS - 1; r >= 0; r--) {
+    if (fullRowSet.has(r)) continue; // fila eliminada, saltar
+    // Copiar la fila r al writeRow del nuevo board
+    for (let c = 0; c < COLS; c++) {
+      newBoard[writeRow][c] = board[r][c];
+    }
+    writeRow--;
+  }
+  // Reemplazar board en place
+  for (let r = 0; r < ROWS; r++) {
+    for (let c = 0; c < COLS; c++) {
+      board[r][c] = newBoard[r][c];
+    }
+  }
+
+  // Animar todos los meshes a su nueva posición visual
+  for (let r = 0; r < ROWS; r++) {
+    for (let c = 0; c < COLS; c++) {
+      const mesh = board[r][c];
+      if (mesh) {
+        const pos = gridToWorld(c, r);
+        // Solo animar si la posición cambió
+        if (Math.abs(mesh.position.x - pos.x) > 0.001 || Math.abs(mesh.position.y - pos.y) > 0.001) {
+          animateMeshTo(mesh, pos.x, pos.y, 0.32);
+        }
+      }
+    }
+  }
+
+  const linesScored = fullRows.length;
+  const points = [0, 100, 300, 500, 800][linesScored] * level;
+  score += points;
+  lines += linesScored;
+  level = Math.floor(lines / 10) + 1;
+  dropInterval = Math.max(0.08, 0.8 - (level - 1) * 0.06);
+  updateHUD();
+
+  // ===== SONIDO DE CASCADA =====
+  if (linesScored === 1) {
+    // Una línea: solo cascada, sutil
+    playSound('cascada', { gain: 0.75, pitch: 0.98 + Math.random() * 0.06 });
+    vibrate([15, 40, 15]);
+  } else {
+    // Dos o más líneas: cascada + cascada2 solapadas → más volumen, más caos
+    playSound('cascada',  { gain: 0.8,  pitch: 0.95 + Math.random() * 0.08 });
+    playSound('cascada2', { gain: 0.65, pitch: 1.02 + Math.random() * 0.06, delay: 0.04 });
+    // Vibración más intensa para tetris doble/triple
+    const vPattern = linesScored >= 3
+      ? [20, 30, 20, 30, 20]   // Triple/Tetris: pulso triple
+      : [18, 35, 18];           // Doble: pulso doble
+    vibrate(vPattern);
+  }
+}
+
+function animateMeshTo(mesh, x, y, duration) {
+  animations.push({
+    mesh,
+    startX: mesh.position.x, startY: mesh.position.y,
+    endX: x, endY: y, t: 0, duration,
+  });
+}
+
+function updateAnimations(dt) {
+  for (let i = animations.length - 1; i >= 0; i--) {
+    const a = animations[i];
+    a.t += dt;
+    const k = Math.min(1, a.t / a.duration);
+    const e = 1 - Math.pow(1 - k, 3);
+    a.mesh.position.x = a.startX + (a.endX - a.startX) * e;
+    a.mesh.position.y = a.startY + (a.endY - a.startY) * e;
+    if (k >= 1) animations.splice(i, 1);
+  }
+}
+
+function updateFallingBlocks(dt) {
+  for (let i = fallingBlocks.length - 1; i >= 0; i--) {
+    const b = fallingBlocks[i];
+    b.age += dt;
+    if (b.age < 0) continue;
+
+    if (b.age >= b.life) {
+      scene.remove(b.mesh);
+      if (b.mesh.geometry) b.mesh.geometry.dispose();
+      fallingBlocks.splice(i, 1);
+      continue;
+    }
+
+    b.vy += GRAVITY * dt;
+    b.mesh.position.x += b.vx * dt;
+    b.mesh.position.y += b.vy * dt;
+    b.mesh.position.z += b.vz * dt;
+    b.mesh.rotation.x += b.rx * dt;
+    b.mesh.rotation.y += b.ry * dt;
+    b.mesh.rotation.z += b.rz * dt;
+
+    const lifeFrac = b.age / b.life;
+    if (lifeFrac > 0.75) {
+      const s = 1 - (lifeFrac - 0.75) / 0.25;
+      b.mesh.scale.set(s, s, s);
+    }
+  }
+}
+
+function updateHUD() {
+  scoreEl.textContent = score.toLocaleString();
+  linesEl.textContent = lines;
+  levelEl.textContent = level;
+}
+
+function hardDrop() {
+  if (!currentPiece || gameOver || paused) return;
+  let dist = 0;
+  while (!collides(currentPiece, 0, dist + 1)) dist++;
+  if (dist > 0) { move(0, dist); score += dist * 2; }
+  lockPiece();
+  dropTimer = 0;
+}
+
+function softDrop() {
+  if (move(0, 1)) {
+    score += 1;
+    updateHUD();
+    dropTimer = 0;
+  }
+}
+
+// ===== INPUT =====
+const keys = {};
+window.addEventListener('keydown', (e) => {
+  if (gameOver) return;
+  if (e.key === 'p' || e.key === 'P' || e.key === 'Escape') { togglePause(); return; }
+  if (paused) return;
+  if (keys[e.key]) return;
+  keys[e.key] = true;
+  if (e.key === 'ArrowLeft') move(-1, 0);
+  else if (e.key === 'ArrowRight') move(1, 0);
+  else if (e.key === 'ArrowUp') rotate();
+  else if (e.key === 'ArrowDown') softDrop();
+  else if (e.key === ' ') { e.preventDefault(); hardDrop(); }
+});
+window.addEventListener('keyup', (e) => { keys[e.key] = false; });
+
+const isTouch = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
+if (isTouch) {
+  document.getElementById('touchControls').classList.add('show');
+  document.getElementById('hint').style.display = 'none';
+}
+document.querySelectorAll('.tc-btn').forEach(btn => {
+  const action = btn.dataset.action;
+  let interval = null;
+  const trigger = () => {
+    if (action === 'left') move(-1, 0);
+    else if (action === 'right') move(1, 0);
+    else if (action === 'rotate') rotate();
+    else if (action === 'soft') softDrop();
+    else if (action === 'hard') hardDrop();
+  };
+  btn.addEventListener('touchstart', (e) => {
+    e.preventDefault();
+    trigger();
+    if (action === 'left' || action === 'right' || action === 'soft') {
+      interval = setInterval(trigger, 130);
+    }
+  }, { passive: false });
+  btn.addEventListener('touchend', () => { if (interval) { clearInterval(interval); interval = null; } });
+  btn.addEventListener('touchcancel', () => { if (interval) { clearInterval(interval); interval = null; } });
+  btn.addEventListener('mousedown', trigger);
+});
+
+let touchStartX = 0, touchStartY = 0, touchStartT = 0;
+renderer.domElement.addEventListener('touchstart', (e) => {
+  if (e.touches.length === 0) return;
+  touchStartX = e.touches[0].clientX;
+  touchStartY = e.touches[0].clientY;
+  touchStartT = performance.now();
+});
+renderer.domElement.addEventListener('touchend', (e) => {
+  if (e.changedTouches.length === 0) return;
+  const dx = e.changedTouches[0].clientX - touchStartX;
+  const dy = e.changedTouches[0].clientY - touchStartY;
+  const dt = performance.now() - touchStartT;
+  const absX = Math.abs(dx), absY = Math.abs(dy);
+  if (absX < 20 && absY < 20 && dt < 300) {
+    rotate();
+  } else if (absX > absY && absX > 30) {
+    move(dx > 0 ? 1 : -1, 0);
+  } else if (absY > absX && absY > 30) {
+    if (dy > 80 && dt < 250) hardDrop();
+    else if (dy > 30) softDrop();
+  }
+});
+
+// ===== PAUSE / GAME OVER =====
+const overlay = document.getElementById('overlay');
+const pauseView = document.getElementById('pauseView');
+const groveView = document.getElementById('groveView');
+const overlayTitle = document.getElementById('overlayTitle');
+const overlaySubtitle = document.getElementById('overlaySubtitle');
+const overlayBtn = document.getElementById('overlayBtn');
+const groveBtn = document.getElementById('groveBtn');
+const pauseBtn = document.getElementById('pauseBtn');
+const groveLinesEl = document.getElementById('groveLines');
+const grovePointsEl = document.getElementById('grovePoints');
+const groveLevelEl = document.getElementById('groveLevel');
+
+function showPauseView() {
+  pauseView.style.display = 'flex';
+  pauseView.style.flexDirection = 'column';
+  pauseView.style.alignItems = 'center';
+  groveView.classList.remove('show');
+}
+
+function showGroveView() {
+  pauseView.style.display = 'none';
+  groveView.classList.add('show');
+}
+
+function togglePause() {
+  if (gameOver) return;
+  paused = !paused;
+  if (paused) {
+    showPauseView();
+    overlayTitle.textContent = 'Paused';
+    overlaySubtitle.textContent = 'Take a breath';
+    overlayBtn.textContent = 'Resume';
+    overlay.classList.add('show');
+  } else {
+    overlay.classList.remove('show');
+  }
+}
+
+// Animación de contador hacia arriba con easing
+function animateCounter(el, target, duration = 1200) {
+  const start = performance.now();
+  const startVal = 0;
+  function step(now) {
+    const t = Math.min(1, (now - start) / duration);
+    // Ease out cubic
+    const eased = 1 - Math.pow(1 - t, 3);
+    const value = Math.floor(startVal + (target - startVal) * eased);
+    el.textContent = value.toLocaleString();
+    if (t < 1) requestAnimationFrame(step);
+    else el.textContent = target.toLocaleString();
+  }
+  requestAnimationFrame(step);
+}
+
+function triggerGameOver() {
+  gameOver = true;
+  showGroveView();
+  overlay.classList.add('show');
+  // Pequeño retraso antes de animar para que sienta el "respiro" de la pausa visual
+  setTimeout(() => {
+    animateCounter(groveLinesEl, lines, 900);
+    animateCounter(grovePointsEl, score, 1400);
+    animateCounter(groveLevelEl, level, 700);
+  }, 250);
+}
+
+function restart() {
+  // Limpiar tablero
+  for (let r = 0; r < ROWS; r++) {
+    for (let c = 0; c < COLS; c++) {
+      if (board[r][c]) {
+        boardGroup.remove(board[r][c]);
+        if (board[r][c].geometry) board[r][c].geometry.dispose();
+        board[r][c] = null;
+      }
+    }
+  }
+  // Limpiar pieza actual
+  if (currentPiece) {
+    for (const b of currentPiece.blocks) {
+      boardGroup.remove(b.mesh);
+      if (b.mesh.geometry) b.mesh.geometry.dispose();
+    }
+    currentPiece = null;
+  }
+  // FIX BUG 2 reforzado: limpiar CUALQUIER mesh huérfano que quedó en boardGroup
+  // (esto pasa si game over se disparó desde spawnPiece y la pieza no llegó a asignarse)
+  while (boardGroup.children.length > 0) {
+    const m = boardGroup.children[0];
+    boardGroup.remove(m);
+    if (m.geometry) m.geometry.dispose();
+  }
+  // Limpiar bloques cayendo
+  for (const b of fallingBlocks) {
+    scene.remove(b.mesh);
+    if (b.mesh.geometry) b.mesh.geometry.dispose();
+  }
+  fallingBlocks.length = 0;
+  // Limpiar animaciones pendientes
+  animations.length = 0;
+
+  score = 0; lines = 0; level = 1; dropInterval = 0.8;
+  gameOver = false; paused = false;
+  nextShape = null;
+  updateHUD();
+  overlay.classList.remove('show');
+  groveView.classList.remove('show');
+  spawnPiece();
+}
+
+overlayBtn.addEventListener('click', () => {
+  if (gameOver) restart();
+  else togglePause();
+});
+groveBtn.addEventListener('click', restart);
+pauseBtn.addEventListener('click', togglePause);
+
+// ===== RESIZE & CAMERA =====
+function resize() {
+  camera.aspect = window.innerWidth / window.innerHeight;
+
+  const targetH = ROWS * CUBE_SIZE * 1.18;
+  const targetW = COLS * CUBE_SIZE * 1.18;
+  const fovRad = camera.fov * Math.PI / 180;
+  let distance = (targetH / 2) / Math.tan(fovRad / 2);
+  const distanceForW = (targetW / 2) / Math.tan(fovRad / 2) / camera.aspect;
+  distance = Math.max(distance, distanceForW);
+
+  // Cámara estilo "tres cuartos" como en el ad
+  const tilt = 4.0;
+  camera.position.set(0, tilt, distance * 1.05);
+  camera.lookAt(0, -1, 0);
+  camera.updateProjectionMatrix();
+
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  composer.setSize(window.innerWidth, window.innerHeight);
+}
+window.addEventListener('resize', resize);
+
+// ===== LOOP =====
+let lastT = performance.now();
+function tick() {
+  requestAnimationFrame(tick);
+  const now = performance.now();
+  const dt = Math.min(0.05, (now - lastT) / 1000);
+  lastT = now;
+
+  if (started && !paused && !gameOver) {
+    dropTimer += dt;
+    if (dropTimer >= dropInterval) {
+      dropTimer = 0;
+      if (currentPiece && !move(0, 1)) lockPiece();
+    }
+  }
+
+  if (started) {
+    updateAnimations(dt);
+    updateFallingBlocks(dt);
+  }
+
+  composer.render();
+}
+tick();
+
+</script>
+</body>
+</html>
